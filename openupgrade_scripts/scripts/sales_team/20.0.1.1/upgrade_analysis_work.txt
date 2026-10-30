@@ -1,0 +1,47 @@
+---Models in module 'sales_team'---
+---Fields in module 'sales_team'---
+---XML records in module 'sales_team'---
+NEW ir.access: sales_team.access_crm_tag_manager
+NEW ir.access: sales_team.access_crm_tag_salesman
+NEW ir.access: sales_team.access_crm_team
+NEW ir.access: sales_team.access_crm_team_member_manager
+NEW ir.access: sales_team.access_crm_team_member_user
+NEW ir.access: sales_team.crm_rule_all_salesteam
+NEW ir.access: sales_team.sale_team_comp_rule
+# NOTHING TO DO: ir.model.access and ir.rule were merged into ir.access.
+# Base (OCA/OpenUpgrade#6068) renames those xmlids in pre-migration and
+# recreates standard rows from this module's ir.access.csv. Rows without a
+# standard xmlid are converted in base post-migration. Customizations of
+# noupdate standard rules are not replayed; that gap belongs to base.
+# crm_rule_all_salesteam moves from group_sale_salesman_all_leads to
+# group_sale_manager with operation crud and no domain. Writes were already
+# manager-only via ir.model.access (salesman rows were read-only). v20
+# grants read of crm.team to base.group_user. sale_team_comp_rule keeps the
+# same multi-company domain.
+
+DEL ir.actions.act_window: sales_team.crm_team_action_sales
+# NOTHING TO DO: crm_team_action_sales was removed from crm_team_views.xml,
+# which is still loaded, and it is not noupdate. End-of-upgrade cleanup
+# drops the xmlid. It is a window action, not a call to a removed method.
+
+DEL ir.model.access: sales_team.access_crm_tag
+DEL ir.model.access: sales_team.access_crm_tag_manager
+DEL ir.model.access: sales_team.access_crm_tag_salesman
+DEL ir.model.access: sales_team.access_crm_team
+DEL ir.model.access: sales_team.access_crm_team_manager
+DEL ir.model.access: sales_team.access_crm_team_member_all
+DEL ir.model.access: sales_team.access_crm_team_member_manager
+DEL ir.model.access: sales_team.access_crm_team_member_user
+DEL ir.model.access: sales_team.access_crm_team_user
+DEL ir.rule: sales_team.crm_rule_all_salesteam (noupdate)
+DEL ir.rule: sales_team.sale_team_comp_rule (noupdate)
+# NOTHING TO DO: ir.model.access and ir.rule were merged into ir.access.
+# Base (OCA/OpenUpgrade#6068) renames those xmlids in pre-migration and
+# recreates standard rows from this module's ir.access.csv. Rows without a
+# standard xmlid are converted in base post-migration. Customizations of
+# noupdate standard rules are not replayed; that gap belongs to base.
+# crm_rule_all_salesteam moves from group_sale_salesman_all_leads to
+# group_sale_manager with operation crud and no domain. Writes were already
+# manager-only via ir.model.access (salesman rows were read-only). v20
+# grants read of crm.team to base.group_user. sale_team_comp_rule keeps the
+# same multi-company domain.
