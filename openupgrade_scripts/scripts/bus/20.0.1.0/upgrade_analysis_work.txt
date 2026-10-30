@@ -1,0 +1,13 @@
+---Models in module 'bus'---
+---Fields in module 'bus'---
+---XML records in module 'bus'---
+DEL ir.model.access: bus.access_bus_bus
+
+# NOTHING TO DO. bus 20.0 has no model or column changes. The deleted ir.model.access
+# row is the ir.model.access to ir.access merge done in base (OCA OpenUpgrade PR #6068);
+# bus no longer ships a security CSV. im_status was checked and is not a bus field.
+# res.users.im_status and mail.guest.im_status changed from a non-stored Char to a
+# non-stored Selection, so there is no column to convert. Stored presence remains
+# mail.presence.status with the same keys online, away and offline. manual_im_status is
+# unchanged. The old partner value bot was a non-stored compute on res.partner and that
+# field was removed.

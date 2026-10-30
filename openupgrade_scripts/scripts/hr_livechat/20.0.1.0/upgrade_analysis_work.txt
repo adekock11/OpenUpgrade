@@ -1,0 +1,7 @@
+---Models in module 'hr_livechat'---
+---Fields in module 'hr_livechat'---
+---XML records in module 'hr_livechat'---
+DEL ir.ui.view: hr_livechat.discuss_channel_looking_for_help_view_search
+
+# NOTHING TO DO: the only change is removal of a search view for the deleted
+# looking-for-help action. No table or column changes.
