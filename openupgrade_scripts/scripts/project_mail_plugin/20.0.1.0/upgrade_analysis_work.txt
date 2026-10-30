@@ -1,0 +1,11 @@
+---Models in module 'project_mail_plugin'---
+# NOTHING TO DO
+
+---Fields in module 'project_mail_plugin'---
+# NOTHING TO DO
+
+---XML records in module 'project_mail_plugin'---
+DEL ir.actions.act_window: project_mail_plugin.project_task_action_form_edit
+# NOTHING TO DO: the action was not noupdate. The module no longer ships
+# views (project_client.py and project_task_views.xml were removed). The
+# module update deletes the xmlid. No stored business data.

@@ -1,0 +1,14 @@
+---Models in module 'project_sms'---
+# NOTHING TO DO
+
+---Fields in module 'project_sms'---
+# NOTHING TO DO
+
+---XML records in module 'project_sms'---
+NEW ir.access: project_sms.access_sms_template_project_manager
+NEW ir.access: project_sms.ir_rule_sms_template_project_manager
+DEL ir.model.access: project_sms.access_sms_template_project_manager
+DEL ir.rule: project_sms.ir_rule_sms_template_project_manager (noupdate)
+# NOTHING TO DO: same records, new model ir.access. Base merges ir.model.access
+# and ir.rule into ir.access and preserves manual rows (odoo/odoo@e7cc76b290).
+# No domain change was generated for the noupdate SMS template rule.
