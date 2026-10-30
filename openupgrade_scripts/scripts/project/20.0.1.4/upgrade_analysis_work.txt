@@ -79,12 +79,17 @@ project      / project.task             / allow_task_dependencies (boolean): now
 
 project      / project.task             / email_cc (char)               : DEL
 project      / project.update           / email_cc (char)               : DEL
-# NOTHING TO DO: mail.thread.cc was removed. The char held unmatched CC
-# addresses so the composer could suggest them. v20 does not keep that list
-# on the document; new mail subscribes partners it can match and stores the
-# raw CC on mail.message.incoming_email_cc. There is no target field. The
-# messages themselves are kept. Unmatched addresses will no longer be
-# suggested as recipients.
+# DONE pre-migration: mail.thread.cc is removed (odoo/odoo@3c26c0553754).
+# project.task redeclared email_cc in 19 and does not in 20. project.update
+# inherited the mixin and now inherits mail.thread only. Field reflection
+# does not DROP the column, so the addresses would stay in the table and
+# disappear from the form. Non-blank values are HTML-escaped and appended to
+# description ("Email cc preserved from previous version: …"), then the
+# column is dropped. Same approach as crm.lead. A second run is a no-op
+# because the column is gone; a retry after the UPDATE and before the DROP
+# skips rows whose description already contains that sentence. Blank values
+# are not appended. Messages still keep mail.message.incoming_email_cc.
+# New mail no longer stores unmatched CCs on the document.
 
 project      / project.update           / _order                        : _order is now 'date desc, id desc' ('id desc')
 # NOTHING TO DO: ordering only. project.update.date already exists.

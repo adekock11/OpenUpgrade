@@ -1,7 +1,10 @@
 # Copyright 2026 Odoo Community Association (OCA)
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
+import logging
 
 from openupgradelib import openupgrade
+
+_logger = logging.getLogger(__name__)
 
 # Historical stage time, rebuilt from mail.tracking.value into the v20 stored
 # shape {"d": "<utc datetime entered current stage>", "s": <stage id or 0>,
@@ -188,6 +191,92 @@ FROM (
 ) AS src
 WHERE rec.id = src.id
 """
+
+
+def _preserve_email_cc_on(env, table):
+    """Append email_cc into description, then drop the column.
+
+    mail.thread.cc is removed in 20.0 (odoo/odoo@3c26c0553754). project.task
+    redeclared email_cc in 19 and drops that declaration in 20. project.update
+    inherited the mixin and now inherits mail.thread only. Neither model has
+    another place for the addresses. Module reflection does not drop the
+    column, so it would sit unread. Same preservation as crm.lead: HTML-escape
+    the value and append it to the Html description.
+    """
+    if not openupgrade.column_exists(env.cr, table, "email_cc"):
+        return
+    if table == "project_task":
+        openupgrade.logged_query(
+            env.cr,
+            """
+            UPDATE project_task
+            SET description = CONCAT(
+                COALESCE(description, ''),
+                CASE
+                    WHEN COALESCE(description, '') = '' THEN ''
+                    ELSE '<br/>'
+                END,
+                '<p>Email cc preserved from previous version: ',
+                replace(
+                    replace(replace(btrim(email_cc), '&', '&amp;'), '<', '&lt;'),
+                    '>',
+                    '&gt;'
+                ),
+                '</p>'
+            )
+            WHERE COALESCE(btrim(email_cc), '') <> ''
+                AND strpos(
+                    COALESCE(description, ''),
+                    'Email cc preserved from previous version:'
+                ) = 0
+            """,
+        )
+    elif table == "project_update":
+        openupgrade.logged_query(
+            env.cr,
+            """
+            UPDATE project_update
+            SET description = CONCAT(
+                COALESCE(description, ''),
+                CASE
+                    WHEN COALESCE(description, '') = '' THEN ''
+                    ELSE '<br/>'
+                END,
+                '<p>Email cc preserved from previous version: ',
+                replace(
+                    replace(replace(btrim(email_cc), '&', '&amp;'), '<', '&lt;'),
+                    '>',
+                    '&gt;'
+                ),
+                '</p>'
+            )
+            WHERE COALESCE(btrim(email_cc), '') <> ''
+                AND strpos(
+                    COALESCE(description, ''),
+                    'Email cc preserved from previous version:'
+                ) = 0
+            """,
+        )
+    else:
+        raise ValueError(table)
+    _logger.info(
+        "Preserved email_cc on %s %s rows into description.",
+        env.cr.rowcount,
+        table,
+    )
+    if table == "project_task":
+        openupgrade.logged_query(
+            env.cr, "ALTER TABLE project_task DROP COLUMN email_cc"
+        )
+    else:
+        openupgrade.logged_query(
+            env.cr, "ALTER TABLE project_update DROP COLUMN email_cc"
+        )
+
+
+def _preserve_email_cc(env):
+    _preserve_email_cc_on(env, "project_task")
+    _preserve_email_cc_on(env, "project_update")
 
 
 def _migrate_collaborator_access_mode(env):
@@ -438,6 +527,7 @@ def _migrate_duration_tracking(env):
 
 @openupgrade.migrate()
 def migrate(env, version):
+    _preserve_email_cc(env)
     _migrate_collaborator_access_mode(env)
     _fill_view_collaborators(env)
     _fill_allowed_internal_users(env)
