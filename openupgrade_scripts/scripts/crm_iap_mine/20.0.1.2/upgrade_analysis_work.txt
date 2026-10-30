@@ -1,0 +1,185 @@
+---Models in module 'crm_iap_mine'---
+new model crm.iap.lead.industry.division
+# NOTHING TO DO: crm.iap.lead.industry.division is loaded from
+# data/crm.iap.lead.industry.division.csv during module update.
+
+---Fields in module 'crm_iap_mine'---
+crm_iap_mine / crm.iap.lead.industry    / _order                        : _order is now 'sequence,division_id,name' ('sequence,id')
+# NOTHING TO DO: order is not stored.
+
+crm_iap_mine / crm.iap.lead.industry    / division_id (many2one)        : NEW relation: crm.iap.lead.industry.division, required
+crm_iap_mine / crm.iap.lead.industry    / reveal_ids (char)             : DEL required
+crm_iap_mine / crm.iap.lead.industry    / sic_group (integer)           : NEW required
+crm_iap_mine / crm.iap.lead.industry.division / code (char)                   : NEW required
+crm_iap_mine / crm.iap.lead.industry.division / name (char)                   : NEW required, translate
+crm_iap_mine / crm.iap.lead.industry.division / sequence (integer)            : NEW
+# DONE: pre-migration deletes the v19 reveal-id catalog (and its xmlids)
+# after clearing foreign keys, then drops reveal_ids. The new CSV fills
+# sic_group and division_id. There is no mapping from reveal ids to SIC
+# major groups (odoo/odoo@57b8a7d360). crm.reveal.rule rows that filtered
+# on an old industry are deactivated first: an empty industry_tag_ids
+# means match every industry, which would widen a paid IAP cron.
+
+crm_iap_mine / crm.iap.lead.mining.request / contact_filter_type (selection): DEL selection_keys: ['role', 'seniority']
+crm_iap_mine / crm.iap.lead.mining.request / contact_number (integer)      : DEL
+crm_iap_mine / crm.iap.lead.mining.request / preferred_role_id (many2one)  : DEL relation: crm.iap.lead.role
+crm_iap_mine / crm.iap.lead.mining.request / role_ids (many2many)          : DEL relation: crm.iap.lead.role
+crm_iap_mine / crm.iap.lead.mining.request / search_type (selection)       : DEL required, selection_keys: ['companies', 'people']
+crm_iap_mine / crm.iap.lead.mining.request / seniority_id (many2one)       : DEL relation: crm.iap.lead.seniority
+# NOTHING TO DO: people search was removed from mining requests. v20 always
+# sends search_type companies. Odoo 20 does not drop removed columns, so
+# contact_number, contact_filter_type, preferred_role_id, seniority_id and
+# search_type remain in crm_iap_lead_mining_request for a DBA. There is no
+# v20 field to copy them into. Generated leads are untouched. Role and
+# seniority master data stay; only the request fields go away.
+
+---XML records in module 'crm_iap_mine'---
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_01
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_02
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_07
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_08
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_09
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_10
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_12
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_13
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_14
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_15
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_16
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_17
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_20
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_21
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_22
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_23
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_24
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_25
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_26
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_27
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_28
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_29
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_30
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_31
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_32
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_34
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_35
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_36
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_37
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_38
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_39
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_40
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_41
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_42
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_43
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_44
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_45
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_46
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_47
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_48
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_49
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_50
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_51
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_52
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_53
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_54
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_55
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_56
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_57
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_58
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_59
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_60
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_61
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_62
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_63
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_64
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_65
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_67
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_70
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_72
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_73
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_75
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_76
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_78
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_79
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_80
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_81
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_82
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_83
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_84
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_87
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_88
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_89
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_91
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_92
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_93
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_94
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_95
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_96
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_97
+NEW crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_99
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_114
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_136
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_138_156
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_148
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_149
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_150_151
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_152
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_153_154
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_158_159
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_160
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_161
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_162
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_163
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_165
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_166
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_167
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_168
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_238
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_239
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_30_155
+DEL crm.iap.lead.industry: crm_iap_mine.crm_iap_mine_industry_69_157
+# DONE: pre-migration removes every v19 crm.iap.lead.industry row and its
+# ir.model.data. Module data then loads the SIC rows (new xmlids). User
+# industries are removed too: they stored reveal ids and cannot satisfy
+# required sic_group / division_id. Mining-request industry links are cleared.
+
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_a
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_b
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_c
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_d
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_e
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_f
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_g
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_h
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_i
+NEW crm.iap.lead.industry.division: crm_iap_mine.crm_iap_mine_division_j
+# NOTHING TO DO: new noupdate-less CSV data, loaded by the module.
+
+NEW ir.access: crm_iap_mine.access_crm_iap_lead_industry
+NEW ir.access: crm_iap_mine.access_crm_iap_lead_industry_division
+NEW ir.access: crm_iap_mine.access_crm_iap_lead_mining_request
+NEW ir.access: crm_iap_mine.access_crm_iap_lead_role
+NEW ir.access: crm_iap_mine.access_crm_iap_lead_seniority
+DEL ir.model.access: crm_iap_mine.access_crm_iap_lead_helpers
+DEL ir.model.access: crm_iap_mine.access_crm_iap_lead_industry
+DEL ir.model.access: crm_iap_mine.access_crm_iap_lead_mining_request
+DEL ir.model.access: crm_iap_mine.access_crm_iap_lead_role
+DEL ir.model.access: crm_iap_mine.access_crm_iap_lead_seniority
+# NOTHING TO DO: ir.model.access and ir.rule were merged into ir.access.
+# Base (OCA/OpenUpgrade#6068) renames those xmlids in pre-migration and
+# recreates standard rows from this module's ir.access.csv. Rows without a
+# standard xmlid are converted in base post-migration. Customizations of
+# noupdate standard rules are not replayed; that gap belongs to base.
+
+NEW ir.model.constraint: crm_iap_mine.constraint_crm_iap_lead_industry_division_name_uniq
+# NOTHING TO DO: new unique(name) on divisions, created by the ORM.
+
+NEW ir.ui.view: crm_iap_mine.crm_iap_lead_industry_view_search
+NEW ir.ui.view: crm_iap_mine.crm_iap_lead_industry_view_tree
+# NOTHING TO DO: new industry views loaded from module data.
+
+DEL ir.ui.view: crm_iap_mine.crm_case_kanban_view_leads
+DEL ir.ui.view: crm_iap_mine.crm_lead_view_tree_lead
+DEL ir.ui.view: crm_iap_mine.crm_lead_view_tree_opportunity
+DEL ir.ui.view: crm_iap_mine.view_crm_lead_kanban
+# DONE: post-migration. crm_lead_views.xml left the manifest. The inherited
+# lead views are deleted before view validation so they cannot reference
+# fields this module no longer extends.
