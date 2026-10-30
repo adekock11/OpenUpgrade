@@ -1,0 +1,28 @@
+---Models in module 'crm_livechat'---
+---Fields in module 'crm_livechat'---
+crm_livechat / chatbot.script.step      / step_type (False)             : selection_keys removed: [create_lead_and_forward]
+# DONE: pre-migration. create_lead_and_forward becomes create_lead
+# (odoo/odoo@895154fd1725). The lead is still created and assigned. The
+# forward-to-operator half is not rebuilt, because inserting a step would
+# rewrite answer triggers and sequences. Upstream declares no ondelete for
+# the removed key, so the column value would otherwise be left invalid.
+
+---XML records in module 'crm_livechat'---
+NEW ir.access: crm_livechat.ir_rule_discuss_channel_crm_lead
+NEW ir.access: crm_livechat.ir_rule_discuss_channel_member_crm_lead
+DEL ir.rule: crm_livechat.ir_rule_discuss_channel_crm_lead (noupdate)
+DEL ir.rule: crm_livechat.ir_rule_discuss_channel_member_crm_lead (noupdate)
+# NOTHING TO DO: ir.model.access and ir.rule were merged into ir.access.
+# Base (OCA/OpenUpgrade#6068) renames those xmlids in pre-migration and
+# recreates standard rows from this module's ir.access.csv. Rows without a
+# standard xmlid are converted in base post-migration. Customizations of
+# noupdate standard rules are not replayed; that gap belongs to base.
+# The new operations match the old rules: channel is read, member is
+# create+read, same domains and the salesman group.
+
+DEL utm.source: crm_livechat.utm_source_livechat [renamed to utm module] (noupdate)
+# DONE: post-migration. The xmlid moves to utm.utm_source_livechat. utm is
+# updated first and its noupdate data creates a second Livechat source when
+# the old xmlid still exists. The duplicate is merged into the historical
+# row (foreign keys included) and the xmlid is renamed. Leads that used a
+# chatbot's own source get utm_reference from the map im_livechat saved.
