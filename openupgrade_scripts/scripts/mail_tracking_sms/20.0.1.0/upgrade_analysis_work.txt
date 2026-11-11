@@ -1,0 +1,14 @@
+---Models in module 'mail_tracking_sms'---
+---Fields in module 'mail_tracking_sms'---
+mail_tracking_sms / mail.message             / source_sms_template_id (many2one): NEW relation: sms.template
+
+# NOTHING TO DO: new auto_install glue. source_sms_template_id is a new column. mail's
+# pre-migration marks this module to install when sms is already installed.
+
+---XML records in module 'mail_tracking_sms'---
+NEW ir.ui.view: mail_tracking_sms.mail_message_view_form
+NEW ir.ui.view: mail_tracking_sms.mail_message_view_list
+NEW ir.ui.view: mail_tracking_sms.mail_message_view_search
+
+# NOTHING TO DO: new auto_install glue. source_sms_template_id is a new column. mail's
+# pre-migration marks this module to install when sms is already installed.
