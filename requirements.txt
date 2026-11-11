@@ -1,2 +1,24 @@
 # generated from manifests external_dependencies
-openupgradelib
+#
+# Odoo 20: load_data() must import convert_xml_import / convert_csv_import
+# from odoo.tools.convert. That fix is already on this fork:
+#   https://github.com/adekock11/openupgradelib/pull/1
+#   branch cursor/fix-convert-xml-import-odoo20-3995
+#
+# Do not install https://github.com/adekock11/openupgradelib/pull/2 as a
+# behavior change. odoo/modules/migration.py:exec_script uses the same
+# allow-list and the same positional migrate(cr, installed_version) call
+# on 18.0, 19.0 and 20.0 (odoo/odoo@f7198a9d7a). @openupgrade.migrate()
+# reports (env, version) via functools.wraps, and openupgradelib master
+# already appends that pair (OCA/openupgradelib@b8c1ed5). That is why
+# OpenUpgrade 18 and 19 work. The only 19.0 -> 20.0 change in that file
+# is the elapsed-time log in migrate_module (odoo/odoo@a69678458d).
+# Pull request 2's __signature__ pin is not required. This environment
+# could not push a correction or a combined master-odoo20-fixes branch:
+# the GitHub token cannot write to adekock11/openupgradelib.
+#
+# To build that combined branch locally, merge only pull request 1:
+#   git clone https://github.com/adekock11/openupgradelib.git
+#   git checkout -b master-odoo20-fixes origin/master
+#   git merge --no-edit origin/cursor/fix-convert-xml-import-odoo20-3995
+openupgradelib @ git+https://github.com/adekock11/openupgradelib.git@cursor/fix-convert-xml-import-odoo20-3995
