@@ -1,0 +1,167 @@
+---Models in module 'resource'---
+# NOTHING TO DO
+
+---Fields in module 'resource'---
+resource     / res.company              / tz (selection)                : NEW selection_keys: function, hasdefault: compute
+resource     / resource.calendar        / tz (selection)                : DEL required, selection_keys: function
+# DONE: pre-migration adds res_company.tz and fills it from the partner
+# timezone (what v19's non-stored related company.tz returned), else the
+# company's default calendar tz, else UTC. The column is filled before the
+# ORM init so the new compute (country timezone when the country has only
+# one) does not overwrite it.
+# resource.calendar.tz and resource.resource.tz are mapped for the pytz names
+# base also maps (Europe/Kiev, Portugal, Poland) before that copy.
+# NOTHING TO DO for keeping a tz per calendar: v20 dropped it (odoo/odoo@2dff65ab,
+# later company.tz lives on resource). Post-migration logs calendars whose tz
+# differs from the company. Each resource.resource.tz is unchanged apart from
+# the obsolete-name map, and that is the timezone v20 uses for a resource.
+
+resource     / resource.calendar        / calendar_type (selection)     : NEW required, selection_keys: ['fixed', 'undefined', 'variable'], hasdefault: default
+resource     / resource.calendar        / schedule_type (selection)     : DEL required, selection_keys: ['flexible', 'fully_fixed']
+resource     / resource.calendar        / flexible_hours (boolean)      : DEL
+resource     / resource.calendar        / two_weeks_calendar (boolean)  : DEL
+resource     / resource.calendar        / duration_based (boolean)      : DEL
+# DONE: pre-migration sets calendar_type before the ORM would default every
+# row to 'fixed' (which would recompute hours from attendances):
+#   flexible / flexible_hours -> undefined
+#   two_weeks_calendar        -> variable   (odoo/odoo@31b77987 replaces the
+#                                             two-week mode, introduced as a
+#                                             removal in odoo/odoo@2dff65ab)
+#   otherwise                 -> fixed
+# duration_based on the calendar had no successor flag. Pre-migration turns
+# pure duration lines (hours 0/0, duration_hours set) into clock hours centered
+# on noon, which is how v19 already stored them after the inverse and how v20
+# places duration-based slots. The weekly pattern is unchanged.
+
+resource     / resource.calendar        / days_per_week (float)         : NEW hasdefault: compute
+# DONE: pre-migration fills it so the ORM does not recompute hours_per_day
+# (hours_per_week / days_per_week, and that compute does not skip non-fixed
+# calendars). Fixed: distinct weekdays. Variable: v19's two-week average.
+# Undefined: hours_per_week / hours_per_day, or 0 when there is no daily figure,
+# which keeps a fully flexible calendar fully flexible.
+
+resource     / resource.calendar        / reference_calendar_id (many2one): NEW relation: resource.calendar, hasdefault: default
+# NOTHING TO DO: optional. Empty means full_time_required_hours stays as stored;
+# the field is not new, so the changed compute is not run for every row.
+# odoo/odoo@8084b882 explicitly has no default reference calendar.
+
+resource     / resource.calendar        / work_time_rate (float)        : is now stored
+# NOTHING TO DO: v19 did not store it (and scaled it by 100). There is no
+# column to convert. The ORM computes the v20 ratio
+# hours_per_week / full_time_required_hours on the new column.
+
+resource     / resource.calendar.attendance / _order                        : _order is now 'sequence, date, dayofweek, hour_from' ('sequence, week_type, dayofweek, hour_from')
+# NOTHING TO DO: display order only.
+
+resource     / resource.calendar.attendance / date (date)                   : NEW
+resource     / resource.calendar.attendance / recurrency (boolean)          : NEW
+resource     / resource.calendar.attendance / recurrency_count (integer)    : NEW hasdefault: default
+resource     / resource.calendar.attendance / recurrency_end_type (selection): NEW selection_keys: ['date', 'forever', 'times'], hasdefault: default
+resource     / resource.calendar.attendance / recurrency_excluded_occurences (json): NEW
+resource     / resource.calendar.attendance / recurrency_interval (integer) : NEW hasdefault: default
+resource     / resource.calendar.attendance / recurrency_type (selection)   : NEW selection_keys: ['days', 'weeks'], hasdefault: default
+resource     / resource.calendar.attendance / recurrency_until (date)       : NEW hasdefault: compute
+resource     / resource.calendar.attendance / week_type (selection)         : DEL selection_keys: ['0', '1']
+# DONE: post-migration, for variable calendars only. Each remaining line is
+# dated on a weekday whose v19 week_type matches (week_type =
+# floor((ordinal - 1) / 7) % 2) and repeats every 2 weeks until 9999-12-31.
+# A line with no week type repeats every week. Fixed calendars keep undated
+# weekly lines; their new recurrency columns stay at the ORM defaults
+# (recurrency null), which the checks allow. The anchor week is 2024-01-01
+# (a Monday) plus the following 13 days, one row per (weekday, week_type).
+
+resource     / resource.calendar.attendance / day_period (selection)        : now a function
+resource     / resource.calendar.attendance / day_period (selection)        : selection_keys removed: [lunch]
+resource     / resource.calendar.attendance / display_type (selection)      : DEL selection_keys: ['line_section']
+resource     / resource.calendar.attendance / name (char)                   : DEL required
+resource     / resource.calendar.attendance / duration_days (float)         : DEL
+# DONE for lunch and section rows: pre-migration deletes them. Lunch was a
+# zero-duration break (v20 models the break as the gap between slots,
+# odoo/odoo@2dff65ab) and would fail CHECK(duration_hours > 0). Section rows
+# were two-week labels, not working time. name and duration_days have no
+# successor; Odoo 20 leaves the orphan columns in place. day_period on the
+# surviving rows stays morning/afternoon/full_day.
+
+resource     / resource.calendar.attendance / duration_based (boolean)      : is now stored
+resource     / resource.calendar.attendance / duration_based (boolean)      : not related anymore
+resource     / resource.calendar.attendance / duration_based (boolean)      : now a function
+resource     / resource.calendar.attendance / duration_hours (float)        : not a function anymore
+# DONE in pre-migration, together with the calendar duration_based note.
+# duration_based was a non-stored related of the calendar. v20 stores
+# "both clock hours are 0". Lines in that shape with a positive duration are
+# given noon-centered hours first, so the new compute does not classify them
+# as duration-based and then reset duration_hours to 0 (the compute only
+# assigns duration_hours when duration_based is false, and an unassigned
+# computed value is written as 0, which fails the new check).
+# The analysis line "not a function anymore" does not match current 20.0,
+# where duration_hours is still computed and stored. The pre-migration makes
+# either behaviour safe: clock hours and duration_hours agree, and both are
+# inside (0, 24].
+
+resource     / resource.calendar.leaves / count_as (selection)          : NEW selection_keys: ['absence', 'working_time'], hasdefault: default
+resource     / resource.calendar.leaves / time_type (selection)         : DEL selection_keys: ['leave', 'other']
+# DONE: pre-migration renames the column and maps leave->absence, other->working_time.
+# NULL and anything unexpected become absence (the v20 default).
+
+resource     / resource.resource        / calendar_id (many2one)        : now required
+# DONE: pre-migration, before the ORM fills NULL with the env company's
+# default fixed calendar. v19 treated an empty calendar as fully flexible
+# (the whole interval is working time). One shared "Fully Flexible" calendar
+# per company (schedule_type flexible, 0 hours/day and hours/week, so v20
+# _is_fully_flexible() is true) is assigned to those resources.
+
+resource     / resource.resource        / color (integer)               : previously in module resource_mail
+# NOTHING TO DO: the column already exists when resource_mail was installed
+# and is created with its default otherwise. The ORM retargets ir.model.fields
+# to the resource module. No values to move.
+
+---XML records in module 'resource'---
+NEW ir.access: resource.access_resource_calendar_attendance_system
+NEW ir.access: resource.access_resource_calendar_attendance_user
+NEW ir.access: resource.access_resource_calendar_system
+NEW ir.access: resource.access_resource_calendar_user
+NEW ir.access: resource.access_resource_resource_all
+NEW ir.access: resource.resource_calendar_leaves_rule_group_admin_modify
+NEW ir.access: resource.resource_calendar_leaves_rule_group_user_create
+NEW ir.access: resource.resource_calendar_leaves_rule_group_user_modify
+NEW ir.access: resource.resource_calendar_leaves_rule_multi_company
+NEW ir.access: resource.resource_resource_multi_company
+DEL ir.model.access: resource.access_resource_calendar_attendance_system
+DEL ir.model.access: resource.access_resource_calendar_attendance_user
+DEL ir.model.access: resource.access_resource_calendar_leaves
+DEL ir.model.access: resource.access_resource_calendar_leaves_user
+DEL ir.model.access: resource.access_resource_calendar_system
+DEL ir.model.access: resource.access_resource_calendar_user
+DEL ir.model.access: resource.access_resource_resource
+DEL ir.model.access: resource.access_resource_resource_all
+DEL ir.rule: resource.resource_calendar_leaves_rule_group_admin_modify (noupdate)
+DEL ir.rule: resource.resource_calendar_leaves_rule_group_user_create (noupdate)
+DEL ir.rule: resource.resource_calendar_leaves_rule_group_user_modify (noupdate)
+DEL ir.rule: resource.resource_calendar_leaves_rule_multi_company (noupdate)
+DEL ir.rule: resource.resource_resource_multi_company (noupdate)
+# NOTHING TO DO: ir.model.access and ir.rule merged into ir.access by base
+# (OCA/OpenUpgrade#6068). This module's XML recreates the standard rules.
+
+NEW ir.actions.act_window: resource.action_resource_material_from_calendar
+NEW ir.cron: resource.ir_cron_calendar_clean_up
+NEW ir.ui.view: resource.view_resource_calendar_attendance_calendar
+NEW ir.ui.view: resource.view_resource_calendar_multi_create_form
+# NOTHING TO DO: loaded by the module update. The cleanup cron deletes
+# attendances that do not match the calendar type; post-migration already
+# deletes attendances of undefined calendars and dates the variable ones,
+# so the cron has nothing left from this migration.
+
+NEW ir.model.constraint: resource.constraint_resource_calendar_attendance_check_count
+NEW ir.model.constraint: resource.constraint_resource_calendar_attendance_check_duration_hours
+NEW ir.model.constraint: resource.constraint_resource_calendar_attendance_check_interval
+NEW ir.model.constraint: resource.constraint_resource_calendar_attendance_check_recurrency_until
+# DONE: pre-migration removes zero-duration rows (lunch, sections, empties)
+# and caps the shape of the others so duration_hours is in (0, 24] before the
+# check is added. Recurrency checks pass at init because recurrency is still
+# null; post-migration sets interval >= 1 and recurrency_until >= date in the
+# same UPDATE.
+
+# noupdate_changes.xml
+# DONE: post-migration renames resource.resource_calendar_std from
+# "Standard 40 hours/week" to "40 hours/week". The record is noupdate, so the
+# module update would not touch it.
