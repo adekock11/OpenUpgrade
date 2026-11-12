@@ -8,6 +8,9 @@ from openupgradelib import openupgrade
 from psycopg2 import sql
 from psycopg2.errors import UniqueViolation
 
+from odoo.modules import get_module_path
+from odoo.modules.module import Manifest
+
 _logger = logging.getLogger(__name__)
 
 _renamed_xmlids = [
@@ -55,7 +58,41 @@ def _schedule_new_module(cr, name):
     that are on the addons path exist. Setting ``to install`` here is picked
     up by the module-loading loop before ``ir.model.data._process_end``, which
     is what keeps moved records from being deleted as leftovers of ``mail``.
+
+    Skip the module when its addon path is missing or a manifest dependency
+    is not installed, to upgrade, or to install. Stock Odoo still installs
+    ``mail_tracking``, and the glue modules when ``mass_mailing`` / ``sms``
+    are installed and present on the addons path. A dependency that is
+    installed and on the path is not inspected further: a custom ``sms``
+    addon that does not define ``sms.composer`` is still treated as ``sms``.
     """
+    if not get_module_path(name, display_warning=False):
+        _logger.warning(
+            "Not scheduling %s: module path was not found.",
+            name,
+        )
+        return None
+    manifest = Manifest.for_addon(name, display_warning=False) or {}
+    depends = [dep for dep in (manifest.get("depends") or []) if dep != name]
+    if depends:
+        cr.execute(
+            """
+            SELECT name
+              FROM ir_module_module
+             WHERE name IN %s
+               AND state IN ('installed', 'to upgrade', 'to install')
+            """,
+            (tuple(depends),),
+        )
+        installed = {row[0] for row in cr.fetchall()}
+        missing = [dep for dep in depends if dep not in installed]
+        if missing:
+            _logger.warning(
+                "Not scheduling %s: dependencies are not installed (%s).",
+                name,
+                ", ".join(missing),
+            )
+            return None
     openupgrade.logged_query(
         cr,
         """
@@ -82,26 +119,18 @@ def _install_mail_tracking(cr):
 
     The model name and table stay ``mail.tracking.value`` /
     ``mail_tracking_value``. Installing the new module reuses that table.
-    The mass-mailing and SMS glue modules are ``auto_install``, but
-    ``update_list()`` already ran before this script could mark
-    ``mail_tracking`` to install, so schedule them explicitly when their
-    other dependency is already installed.
+    ``mail_tracking`` is scheduled first because the glue modules depend on
+    it. Each call checks the module path and the manifest dependencies.
+    ``mail_tracking_sms`` is skipped when ``sms`` is not installed or has no
+    addon path. ``mail_tracking_mass_mailing`` is skipped when
+    ``mass_mailing`` is not installed or has no addon path. On stock Odoo
+    both dependencies are present and the glue modules are still installed.
     """
     state = _schedule_new_module(cr, "mail_tracking")
     if state not in ("to install", "to upgrade", "installed"):
         return
-    cr.execute(
-        """
-        SELECT name FROM ir_module_module
-         WHERE name IN ('mass_mailing', 'sms')
-           AND state IN ('installed', 'to upgrade', 'to install')
-        """
-    )
-    installed = {row[0] for row in cr.fetchall()}
-    if "mass_mailing" in installed:
-        _schedule_new_module(cr, "mail_tracking_mass_mailing")
-    if "sms" in installed:
-        _schedule_new_module(cr, "mail_tracking_sms")
+    _schedule_new_module(cr, "mail_tracking_mass_mailing")
+    _schedule_new_module(cr, "mail_tracking_sms")
 
 
 def _preserve_tracking_currency(cr):
