@@ -5,6 +5,8 @@ import json
 import logging
 
 from openupgradelib import openupgrade
+from psycopg2 import sql
+from psycopg2.errors import UniqueViolation
 
 from odoo.modules import get_module_path
 from odoo.modules.module import Manifest
@@ -348,8 +350,581 @@ def _migrate_server_action_notes(cr):
     )
 
 
+def _discuss_channel_fks(cr):
+    cr.execute(
+        """
+        SELECT src.relname, att.attname
+          FROM pg_constraint AS con
+          JOIN pg_class AS src ON src.oid = con.conrelid
+          JOIN pg_class AS dst ON dst.oid = con.confrelid
+          JOIN pg_namespace AS ns ON ns.oid = src.relnamespace
+          JOIN pg_attribute AS att
+            ON att.attrelid = src.oid
+           AND att.attnum = con.conkey[1]
+         WHERE con.contype = 'f'
+           AND dst.relname = 'discuss_channel'
+           AND ns.nspname = current_schema()
+           AND array_length(con.conkey, 1) = 1
+        """
+    )
+    return cr.fetchall()
+
+
+def _fill_member_indices(cr):
+    """Store ``discuss.channel.member_indices`` in Odoo's format.
+
+    ``DiscussChannel._member_indices`` joins sorted partner ids as ``p<id>``
+    and then sorted guest ids as ``g<id>``, comma-separated. Non-chats stay
+    NULL (``member_indices_channel_check``). A chat with no partner and no
+    guest cannot satisfy ``member_indices_chat_check`` (non-empty). Those
+    rows become group conversations so their messages are kept and the chat
+    constraints do not apply.
+    """
+    openupgrade.logged_query(
+        cr,
+        """
+        UPDATE discuss_channel AS channel
+           SET member_indices = tokens.indices
+          FROM (
+                SELECT channel_id,
+                       string_agg(
+                           token, ',' ORDER BY sort_group, sort_id
+                       ) AS indices
+                  FROM (
+                        SELECT channel_id,
+                               'p' || partner_id::text AS token,
+                               0 AS sort_group,
+                               partner_id AS sort_id
+                          FROM discuss_channel_member
+                         WHERE partner_id IS NOT NULL
+                         GROUP BY channel_id, partner_id
+                        UNION ALL
+                        SELECT channel_id,
+                               'g' || guest_id::text AS token,
+                               1 AS sort_group,
+                               guest_id AS sort_id
+                          FROM discuss_channel_member
+                         WHERE guest_id IS NOT NULL
+                         GROUP BY channel_id, guest_id
+                       ) AS member
+                 GROUP BY channel_id
+               ) AS tokens
+         WHERE channel.id = tokens.channel_id
+           AND channel.channel_type = 'chat'
+        """,
+    )
+    openupgrade.logged_query(
+        cr,
+        """
+        UPDATE discuss_channel
+           SET member_indices = NULL
+         WHERE channel_type IS DISTINCT FROM 'chat'
+        """,
+    )
+    # A chat with no partner and no guest cannot satisfy the chat check.
+    # Become a group and clear fields that only a channel may set, so the
+    # group_public_id / is_readonly checks do not fire. Messages stay put.
+    assignments = [
+        sql.SQL("channel_type = 'group'"),
+        sql.SQL("member_indices = NULL"),
+    ]
+    if openupgrade.column_exists(cr, "discuss_channel", "group_public_id"):
+        assignments.append(sql.SQL("group_public_id = NULL"))
+    if openupgrade.column_exists(cr, "discuss_channel", "is_readonly"):
+        assignments.append(sql.SQL("is_readonly = FALSE"))
+    openupgrade.logged_query(
+        cr,
+        sql.SQL(
+            """
+            UPDATE discuss_channel
+               SET {}
+             WHERE channel_type = 'chat'
+               AND (member_indices IS NULL OR btrim(member_indices) = '')
+            """
+        ).format(sql.SQL(", ").join(assignments)),
+    )
+
+
+def _member_identity_fks(cr):
+    cr.execute(
+        """
+        SELECT src.relname, att.attname
+          FROM pg_constraint AS con
+          JOIN pg_class AS src ON src.oid = con.conrelid
+          JOIN pg_class AS dst ON dst.oid = con.confrelid
+          JOIN pg_namespace AS ns ON ns.oid = src.relnamespace
+          JOIN pg_attribute AS att
+            ON att.attrelid = src.oid
+           AND att.attnum = con.conkey[1]
+         WHERE con.contype = 'f'
+           AND dst.relname = 'discuss_channel_member'
+           AND ns.nspname = current_schema()
+           AND array_length(con.conkey, 1) = 1
+        """
+    )
+    return cr.fetchall()
+
+
+def _merge_member_rows(cr):
+    """Keep one member per (partner, guest) on the surviving chat.
+
+    NULL partner and NULL guest are a real identity: two guest-only members
+    stay distinct, and a row with both NULL does not swallow a partner row.
+    PostgreSQL treats those NULLs as equal for DISTINCT ON, which is what we
+    want for the empty identity and not for mixed ones.
+
+    The survivor is the member already on the keeper channel when there is
+    one, otherwise the lowest id. ``seen_message_id`` (and ``fetched_message_id``
+    when that column still exists) becomes the greatest id in the group, so
+    several duplicate rows cannot make the UPDATE pick an arbitrary value.
+    """
+    openupgrade.logged_query(
+        cr,
+        """
+        DROP TABLE IF EXISTS openupgrade_member_survivor;
+        """,
+    )
+    # logged_query executes one statement. Create the map separately.
+    openupgrade.logged_query(
+        cr,
+        """
+        CREATE TEMP TABLE openupgrade_member_survivor AS
+        SELECT DISTINCT ON (pair.keeper_id, member.partner_id, member.guest_id)
+               member.id AS survivor_id,
+               pair.keeper_id,
+               member.partner_id,
+               member.guest_id
+          FROM discuss_channel_member AS member
+          JOIN openupgrade_chat_duplicate AS pair
+            ON pair.duplicate_id = member.channel_id
+            OR pair.keeper_id = member.channel_id
+         ORDER BY pair.keeper_id,
+                  member.partner_id,
+                  member.guest_id,
+                  (member.channel_id = pair.keeper_id) DESC,
+                  member.id
+        """,
+    )
+    openupgrade.logged_query(
+        cr,
+        """
+        UPDATE discuss_channel_member AS survivor
+           SET seen_message_id = grouped.max_seen
+          FROM (
+                SELECT map.survivor_id,
+                       MAX(member.seen_message_id) AS max_seen
+                  FROM openupgrade_member_survivor AS map
+                  JOIN discuss_channel_member AS member
+                    ON member.partner_id IS NOT DISTINCT FROM map.partner_id
+                   AND member.guest_id IS NOT DISTINCT FROM map.guest_id
+                   AND (
+                        member.channel_id = map.keeper_id
+                        OR member.channel_id IN (
+                            SELECT duplicate_id
+                              FROM openupgrade_chat_duplicate
+                             WHERE keeper_id = map.keeper_id
+                        )
+                   )
+                 GROUP BY map.survivor_id
+               ) AS grouped
+         WHERE survivor.id = grouped.survivor_id
+           AND grouped.max_seen IS NOT NULL
+           AND (
+                survivor.seen_message_id IS NULL
+                OR grouped.max_seen > survivor.seen_message_id
+           )
+        """,
+    )
+    if openupgrade.column_exists(cr, "discuss_channel_member", "fetched_message_id"):
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE discuss_channel_member AS survivor
+               SET fetched_message_id = grouped.max_fetched
+              FROM (
+                    SELECT map.survivor_id,
+                           MAX(member.fetched_message_id) AS max_fetched
+                      FROM openupgrade_member_survivor AS map
+                      JOIN discuss_channel_member AS member
+                        ON member.partner_id IS NOT DISTINCT FROM map.partner_id
+                       AND member.guest_id IS NOT DISTINCT FROM map.guest_id
+                       AND (
+                            member.channel_id = map.keeper_id
+                            OR member.channel_id IN (
+                                SELECT duplicate_id
+                                  FROM openupgrade_chat_duplicate
+                                 WHERE keeper_id = map.keeper_id
+                            )
+                       )
+                     GROUP BY map.survivor_id
+                   ) AS grouped
+             WHERE survivor.id = grouped.survivor_id
+               AND grouped.max_fetched IS NOT NULL
+               AND (
+                    survivor.fetched_message_id IS NULL
+                    OR grouped.max_fetched > survivor.fetched_message_id
+               )
+            """,
+        )
+    for table, column in _member_identity_fks(cr):
+        try:
+            with cr.savepoint():
+                openupgrade.logged_query(
+                    cr,
+                    sql.SQL(
+                        """
+                        UPDATE {table} AS target
+                           SET {column} = map.survivor_id
+                          FROM discuss_channel_member AS member
+                          JOIN openupgrade_member_survivor AS map
+                            ON member.partner_id IS NOT DISTINCT FROM map.partner_id
+                           AND member.guest_id IS NOT DISTINCT FROM map.guest_id
+                           AND member.id <> map.survivor_id
+                           AND (
+                                member.channel_id = map.keeper_id
+                                OR member.channel_id IN (
+                                    SELECT duplicate_id
+                                      FROM openupgrade_chat_duplicate
+                                     WHERE keeper_id = map.keeper_id
+                                )
+                           )
+                         WHERE target.{column} = member.id
+                        """
+                    ).format(
+                        table=sql.Identifier(table),
+                        column=sql.Identifier(column),
+                    ),
+                )
+        except UniqueViolation:
+            _logger.warning(
+                "Could not re-point %s.%s onto the kept channel member.",
+                table,
+                column,
+            )
+    openupgrade.logged_query(
+        cr,
+        """
+        DELETE FROM discuss_channel_member AS member
+         USING openupgrade_member_survivor AS map
+         WHERE member.partner_id IS NOT DISTINCT FROM map.partner_id
+           AND member.guest_id IS NOT DISTINCT FROM map.guest_id
+           AND member.id <> map.survivor_id
+           AND (
+                member.channel_id = map.keeper_id
+                OR member.channel_id IN (
+                    SELECT duplicate_id
+                      FROM openupgrade_chat_duplicate
+                     WHERE keeper_id = map.keeper_id
+                )
+           )
+        """,
+    )
+    openupgrade.logged_query(
+        cr,
+        """
+        UPDATE discuss_channel_member AS member
+           SET channel_id = map.keeper_id
+          FROM openupgrade_member_survivor AS map
+         WHERE member.id = map.survivor_id
+           AND member.channel_id <> map.keeper_id
+        """,
+    )
+    cr.execute("DROP TABLE IF EXISTS openupgrade_member_survivor")
+
+
+def _merge_followers(cr):
+    if not openupgrade.table_exists(cr, "mail_followers"):
+        return
+    subtype = "mail_followers_mail_message_subtype_rel"
+    if openupgrade.table_exists(cr, subtype):
+        openupgrade.logged_query(
+            cr,
+            """
+            INSERT INTO mail_followers_mail_message_subtype_rel (
+                mail_followers_id, mail_message_subtype_id
+            )
+            SELECT keeper.id, rel.mail_message_subtype_id
+              FROM mail_followers AS dup
+              JOIN openupgrade_chat_duplicate AS pair
+                ON pair.duplicate_id = dup.res_id
+              JOIN mail_followers AS keeper
+                ON keeper.res_model = 'discuss.channel'
+               AND keeper.res_id = pair.keeper_id
+               AND keeper.partner_id = dup.partner_id
+               AND dup.partner_id IS NOT NULL
+              JOIN mail_followers_mail_message_subtype_rel AS rel
+                ON rel.mail_followers_id = dup.id
+             WHERE dup.res_model = 'discuss.channel'
+               AND NOT EXISTS (
+                    SELECT 1
+                      FROM mail_followers_mail_message_subtype_rel AS existing
+                     WHERE existing.mail_followers_id = keeper.id
+                       AND existing.mail_message_subtype_id =
+                           rel.mail_message_subtype_id
+               )
+            """,
+        )
+    openupgrade.logged_query(
+        cr,
+        """
+        DELETE FROM mail_followers AS dup
+         USING openupgrade_chat_duplicate AS pair,
+               mail_followers AS keeper
+         WHERE dup.res_model = 'discuss.channel'
+           AND dup.res_id = pair.duplicate_id
+           AND keeper.res_model = 'discuss.channel'
+           AND keeper.res_id = pair.keeper_id
+           AND keeper.partner_id = dup.partner_id
+           AND dup.partner_id IS NOT NULL
+        """,
+    )
+    openupgrade.logged_query(
+        cr,
+        """
+        UPDATE mail_followers AS follower
+           SET res_id = pair.keeper_id
+          FROM openupgrade_chat_duplicate AS pair
+         WHERE follower.res_model = 'discuss.channel'
+           AND follower.res_id = pair.duplicate_id
+        """,
+    )
+
+
+def _repoint_channel_fks(cr):
+    for table, column in _discuss_channel_fks(cr):
+        if table == "discuss_channel_member":
+            continue
+        if table == "discuss_channel":
+            openupgrade.logged_query(
+                cr,
+                sql.SQL(
+                    """
+                    UPDATE discuss_channel AS channel
+                       SET {column} = NULL
+                      FROM openupgrade_chat_duplicate AS pair
+                     WHERE channel.id = pair.keeper_id
+                       AND channel.{column} = pair.duplicate_id
+                    """
+                ).format(column=sql.Identifier(column)),
+            )
+        try:
+            with cr.savepoint():
+                openupgrade.logged_query(
+                    cr,
+                    sql.SQL(
+                        """
+                        UPDATE {table} AS target
+                           SET {column} = pair.keeper_id
+                          FROM openupgrade_chat_duplicate AS pair
+                         WHERE target.{column} = pair.duplicate_id
+                        """
+                    ).format(
+                        table=sql.Identifier(table),
+                        column=sql.Identifier(column),
+                    ),
+                )
+        except UniqueViolation:
+            _logger.warning(
+                "Could not re-point %s.%s while merging duplicate chats.",
+                table,
+                column,
+            )
+
+
+def _merge_duplicate_chats(env):
+    """Collapse DM chats that share a member set.
+
+    Older versions allowed several chats between the same members. 20.0 adds
+    the partial unique index ``discuss_channel_member_indices_unique`` on
+    chats, which raises ``duplicate key value violates unique constraint``.
+    The oldest chat (``create_date``, then ``id``) is kept. Messages
+    (``model = discuss.channel``), members, followers and attachments move
+    onto it. The discuss.channel message count is unchanged.
+    """
+    cr = env.cr
+    if not openupgrade.table_exists(cr, "discuss_channel"):
+        return
+    if not openupgrade.table_exists(cr, "discuss_channel_member"):
+        return
+    before = None
+    if openupgrade.table_exists(cr, "mail_message"):
+        cr.execute("SELECT COUNT(*) FROM mail_message WHERE model = 'discuss.channel'")
+        before = cr.fetchone()[0]
+    openupgrade.add_columns(
+        env,
+        [("discuss.channel", "member_indices", "char", None, "discuss_channel")],
+    )
+    _fill_member_indices(cr)
+    cr.execute("DROP TABLE IF EXISTS openupgrade_chat_duplicate")
+    openupgrade.logged_query(
+        cr,
+        """
+        CREATE TEMP TABLE openupgrade_chat_duplicate (
+            duplicate_id INTEGER PRIMARY KEY,
+            keeper_id INTEGER NOT NULL
+        )
+        """,
+    )
+    openupgrade.logged_query(
+        cr,
+        """
+        INSERT INTO openupgrade_chat_duplicate (duplicate_id, keeper_id)
+        WITH ranked AS (
+            SELECT id,
+                   member_indices,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY member_indices
+                       ORDER BY create_date NULLS LAST, id
+                   ) AS rn
+              FROM discuss_channel
+             WHERE channel_type = 'chat'
+               AND member_indices IS NOT NULL
+               AND btrim(member_indices) <> ''
+        )
+        SELECT duplicate.id, keeper.id
+          FROM ranked AS duplicate
+          JOIN ranked AS keeper
+            ON keeper.member_indices = duplicate.member_indices
+           AND keeper.rn = 1
+         WHERE duplicate.rn > 1
+        """,
+    )
+    cr.execute("SELECT COUNT(*) FROM openupgrade_chat_duplicate")
+    duplicate_count = cr.fetchone()[0]
+    if duplicate_count:
+        _logger.info(
+            "Merging %s duplicate discuss.channel chats into the oldest chat.",
+            duplicate_count,
+        )
+    if openupgrade.table_exists(cr, "mail_message"):
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE mail_message AS message
+               SET res_id = pair.keeper_id
+              FROM openupgrade_chat_duplicate AS pair
+             WHERE message.model = 'discuss.channel'
+               AND message.res_id = pair.duplicate_id
+            """,
+        )
+    _merge_member_rows(cr)
+    _merge_followers(cr)
+    if openupgrade.table_exists(cr, "ir_attachment"):
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE ir_attachment AS attachment
+               SET res_id = pair.keeper_id
+              FROM openupgrade_chat_duplicate AS pair
+             WHERE attachment.res_model = 'discuss.channel'
+               AND attachment.res_id = pair.duplicate_id
+            """,
+        )
+    _repoint_channel_fks(cr)
+    openupgrade.logged_query(
+        cr,
+        """
+        DELETE FROM discuss_channel
+         WHERE id IN (SELECT duplicate_id FROM openupgrade_chat_duplicate)
+        """,
+    )
+    after = before
+    if before is not None:
+        cr.execute("SELECT COUNT(*) FROM mail_message WHERE model = 'discuss.channel'")
+        after = cr.fetchone()[0]
+    cr.execute("DROP TABLE IF EXISTS openupgrade_chat_duplicate")
+    if before is not None and before != after:
+        raise RuntimeError(
+            "Merging duplicate discuss.channel chats changed the message "
+            f"count from {before} to {after}."
+        )
+    _logger.info(
+        "discuss.channel chats now have member_indices. Message count is %s.",
+        after,
+    )
+
+
+def _dedupe_mail_link_preview(cr):
+    """``mail.link.preview`` gains a unique index on ``source_url``.
+
+    Keep the lowest id for each URL, point ``mail.message.link.preview`` at
+    it, and drop the other preview rows. A message that already has the kept
+    preview loses the duplicate link so ``(message_id, link_preview_id)``
+    stays unique.
+    """
+    if not openupgrade.table_exists(cr, "mail_link_preview"):
+        return
+    if not openupgrade.column_exists(cr, "mail_link_preview", "source_url"):
+        return
+    cr.execute("DROP TABLE IF EXISTS openupgrade_link_preview_dup")
+    openupgrade.logged_query(
+        cr,
+        """
+        CREATE TEMP TABLE openupgrade_link_preview_dup AS
+        SELECT preview.id AS old_id, keeper.id AS new_id
+          FROM mail_link_preview AS preview
+          JOIN (
+                SELECT source_url, MIN(id) AS id
+                  FROM mail_link_preview
+                 WHERE source_url IS NOT NULL
+                 GROUP BY source_url
+                HAVING COUNT(*) > 1
+               ) AS keeper
+            ON keeper.source_url = preview.source_url
+         WHERE preview.id <> keeper.id
+        """,
+    )
+    if openupgrade.table_exists(cr, "mail_message_link_preview"):
+        openupgrade.logged_query(
+            cr,
+            """
+            DELETE FROM mail_message_link_preview AS link
+             USING openupgrade_link_preview_dup AS dup
+             WHERE link.link_preview_id = dup.old_id
+               AND EXISTS (
+                    SELECT 1
+                      FROM mail_message_link_preview AS kept
+                     WHERE kept.message_id = link.message_id
+                       AND kept.link_preview_id = dup.new_id
+               )
+            """,
+        )
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE mail_message_link_preview AS link
+               SET link_preview_id = dup.new_id
+              FROM openupgrade_link_preview_dup AS dup
+             WHERE link.link_preview_id = dup.old_id
+            """,
+        )
+        # Two duplicate previews of the same URL on one message both move
+        # onto the kept preview. Drop the extra link so
+        # (message_id, link_preview_id) stays unique.
+        openupgrade.logged_query(
+            cr,
+            """
+            DELETE FROM mail_message_link_preview AS extra
+             USING mail_message_link_preview AS kept
+             WHERE extra.message_id = kept.message_id
+               AND extra.link_preview_id = kept.link_preview_id
+               AND extra.id > kept.id
+            """,
+        )
+    openupgrade.logged_query(
+        cr,
+        """
+        DELETE FROM mail_link_preview
+         WHERE id IN (SELECT old_id FROM openupgrade_link_preview_dup)
+        """,
+    )
+    cr.execute("DROP TABLE IF EXISTS openupgrade_link_preview_dup")
+
+
 @openupgrade.migrate()
 def migrate(env, version):
+    _dedupe_mail_link_preview(env.cr)
+    _merge_duplicate_chats(env)
     _install_mail_tracking(env.cr)
     _blank_views_referencing_removed_fields(env.cr)
     openupgrade.rename_xmlids(env.cr, _renamed_xmlids)

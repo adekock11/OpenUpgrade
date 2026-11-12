@@ -8,13 +8,10 @@ obsolete model mail.thread.cc [abstract]
 model mail.tracking.value (moved to mail_tracking)
 
 # DONE in pre-migration: mail_tracking is not auto_install. The script marks it to
-# install when the module path exists and its dependencies are installed, then
-# mail_tracking_mass_mailing / mail_tracking_sms the same way. A database that
-# mail_tracking_sms is skipped only when sms is not installed or has no addon
-# path. A custom sms addon that is installed but has no sms.composer is not
-# detected. Stock Odoo still installs all three.
-# The model name and table mail_tracking_value are unchanged, so the history is
-# reused. Moved xmlids are renamed onto mail_tracking before _process_end.
+# install, and also mail_tracking_mass_mailing / mail_tracking_sms when mass_mailing /
+# sms are installed, because update_list() has already run. The model name and table
+# mail_tracking_value are unchanged, so the history is reused. Moved xmlids are renamed
+# onto mail_tracking before _process_end.
 
 new model bus.sync.mixin [abstract]
 new model discuss.category
@@ -45,6 +42,8 @@ mail         / discuss.channel          / is_readonly (boolean)         : NEW
 # NOTHING TO DO: new feature with no 19.0 data.
 
 mail         / discuss.channel          / member_indices (char)         : NEW isfunction: function, stored
+# DONE: pre-migration fills p<partner>,g<guest> (sorted ids) and merges
+# duplicate chats onto the oldest one. Chats with no members become groups.
 
 # NOTHING TO DO: stored compute filled by the ORM for chats. The partial unique index
 # can fail the upgrade if two chats already have the same members; that is reported
@@ -433,6 +432,9 @@ NEW ir.access: mail.access_mail_guest_system
 NEW ir.access: mail.access_mail_guest_user
 NEW ir.access: mail.access_mail_ice_server_system
 NEW ir.access: mail.access_mail_link_preview_admin
+# DONE: pre-migration deduplicates mail.link.preview by source_url (lowest id)
+# and re-points mail.message.link.preview so the unique source_url index
+# can be created. models.UniqueIndex is not a separate analysis row.
 NEW ir.access: mail.access_mail_mail_system
 NEW ir.access: mail.access_mail_message_link_preview_erp_manager
 NEW ir.access: mail.access_mail_message_reaction_system
@@ -637,8 +639,11 @@ NEW ir.model.constraint: mail.constraint_discuss_channel_member_channel_id_id_id
 # the canned-response admin implied group, only where the 19.0 value is still in place.
 
 NEW ir.model.constraint: mail.constraint_discuss_channel_member_indices_channel_check
+# DONE: satisfied by the member_indices pre-migration.
 NEW ir.model.constraint: mail.constraint_discuss_channel_member_indices_chat_check
+# DONE: satisfied by the member_indices pre-migration.
 NEW ir.model.constraint: mail.constraint_discuss_channel_member_indices_unique
+# DONE: satisfied by the member_indices pre-migration.
 
 # NOTHING TO DO: stored compute filled by the ORM for chats. The partial unique index
 # can fail the upgrade if two chats already have the same members; that is reported

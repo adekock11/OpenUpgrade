@@ -1,0 +1,399 @@
+---Models in module 'hr'---
+obsolete model hr.contract.type
+# DONE: pre-migration renames the model and table to hr.employee.type and retargets xmlids.
+obsolete model hr.departure.wizard [transient]
+# NOTHING TO DO: transient wizard replaced by hr.employee.departure. Departure values are copied in post-migration.
+obsolete model hr.version.wizard [transient]
+# NOTHING TO DO: transient.
+new model hr.employee.create.version.wizard [transient]
+# NOTHING TO DO: new transient.
+new model hr.employee.departure
+# DONE: post-migration creates one row per version that had a departure reason, date or description, and sets hr.version.departure_id.
+model hr.employee.location (moved from hr_homeworking)
+# NOTHING TO DO: hr_homeworking is merged into hr by apriori; columns stay.
+new model hr.employee.type
+# DONE: rename of hr.contract.type. code/name/sequence/country_id stay on the renamed table. company_id is a new optional column.
+---Fields in module 'hr'---
+hr           / hr.contract.type         / code (char)                   : DEL
+hr           / hr.contract.type         / country_id (many2one)         : DEL relation: res.country
+hr           / hr.contract.type         / name (char)                   : DEL required
+hr           / hr.contract.type         / sequence (integer)            : DEL
+# DONE: columns survive the model rename.
+hr           / hr.department            / website_message_ids (one2many): DEL relation: mail.message
+# NOTHING TO DO: mail.thread one2many, no column to move.
+hr           / hr.departure.reason      / active (boolean)              : NEW hasdefault: default
+# NOTHING TO DO: new boolean with a default. ORM fills existing rows.
+hr           / hr.employee              / additional_note (text)        : is now stored
+hr           / hr.employee              / additional_note (text)        : not related anymore
+# DONE: pre-migration copies the current version's additional_note onto hr.employee before the version column is dropped.
+hr           / hr.employee              / birthday_month (selection)    : NEW selection_keys: ['0', '1', '10', '11', '12', '2', '3', '4', '5', '6', '7', '8', '9'], isfunction: function, stored
+# NOTHING TO DO: stored compute from birthday. The employee model is loaded with hr, so the compute can run.
+hr           / hr.employee              / child_all_count (integer)     : previously in module hr_org_chart
+hr           / hr.employee              / child_count (integer)         : previously in module hr_org_chart
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee              / contract_template_id (many2one): is now stored
+hr           / hr.employee              / contract_template_id (many2one): not related anymore
+# DONE: pre-migration copies version.contract_template_id onto the employee.
+hr           / hr.employee              / department_color (integer)    : previously in module hr_org_chart
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee              / driving_license_name (char)   : NEW
+# NOTHING TO DO: new optional char.
+hr           / hr.employee              / exceptional_location_id (many2one): previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee              / first_contract_date (date)    : NEW isfunction: function, stored
+# NOTHING TO DO: stored compute from the employee's versions. Computed when hr loads.
+hr           / hr.employee              / friday_location_id (many2one) : previously in module hr_homeworking
+hr           / hr.employee              / hourly_cost (float)           : previously in module hr_hourly_cost
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee              / hr_icon_display (selection)   : selection_keys added: [presence_home, presence_office, presence_other], removed: [presence_archive]
+# NOTHING TO DO: selection keys. Existing values stay; presence_archive is no longer offered.
+hr           / hr.employee              / hr_presence_state (selection) : selection_keys removed: [archive]
+# NOTHING TO DO: removed selection key 'archive' is not rewritten; stored values remain valid history.
+hr           / hr.employee              / id_card_name (char)           : NEW
+# NOTHING TO DO: new optional char.
+hr           / hr.employee              / is_subordinate (boolean)      : previously in module hr_org_chart
+hr           / hr.employee              / monday_location_id (many2one) : previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee              / phone_mobile_search (char)    : NEW stored: False
+# NOTHING TO DO: not stored.
+hr           / hr.employee              / phone_sanitized (char)        : NEW isfunction: function, stored
+# NOTHING TO DO: stored compute from the phone. Computed when hr loads.
+hr           / hr.employee              / private_car_plate (char)      : DEL
+# NOTHING TO DO: column is not dropped (OpenUpgrade keeps removed columns). No successor field.
+hr           / hr.employee              / resource_calendar_id (many2one): now required
+# DONE: pre-migration fills NULL version calendars from the company calendar, then any calendar.
+hr           / hr.employee              / saturday_location_id (many2one): previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee              / study_school (char)           : DEL
+# NOTHING TO DO: column is kept by OpenUpgrade. No successor field.
+hr           / hr.employee              / subordinate_ids (one2many)    : previously in module hr_org_chart
+hr           / hr.employee              / sunday_location_id (many2one) : previously in module hr_homeworking
+hr           / hr.employee              / thursday_location_id (many2one): previously in module hr_homeworking
+hr           / hr.employee              / today_location_name (char)    : previously in module hr_homeworking
+hr           / hr.employee              / tuesday_location_id (many2one): previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee              / tz (selection)                : now required
+# DONE: NULL employee timezones are set to UTC, then copied onto hr.version.tz.
+hr           / hr.employee              / website_message_ids (one2many): DEL relation: mail.message
+# NOTHING TO DO: mail.thread one2many, no column to move.
+hr           / hr.employee              / wednesday_location_id (many2one): previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee.departure    / action_date (date)            : NEW isfunction: function, stored
+hr           / hr.employee.departure    / apply_date (date)             : NEW
+hr           / hr.employee.departure    / departure_date (date)         : NEW hasdefault: compute
+hr           / hr.employee.departure    / departure_description (html)  : NEW
+hr           / hr.employee.departure    / departure_reason_id (many2one): NEW relation: hr.departure.reason, required, hasdefault: default
+hr           / hr.employee.departure    / dismissal_date (date)         : NEW required, hasdefault: default
+hr           / hr.employee.departure    / employee_id (many2one)        : NEW relation: hr.employee, required, hasdefault: default
+hr           / hr.employee.departure    / last_contract_date_end (date) : NEW
+# DONE: rows are inserted in post-migration from the legacy version columns. action_date is the day after the departure date.
+hr           / hr.employee.location     / _order                        : previously in module hr_homeworking
+hr           / hr.employee.location     / date (date)                   : previously in module hr_homeworking
+hr           / hr.employee.location     / day_week_string (char)        : previously in module hr_homeworking
+hr           / hr.employee.location     / display_name (char)           : previously in module hr_homeworking
+hr           / hr.employee.location     / employee_id (many2one)        : previously in module hr_homeworking
+hr           / hr.employee.location     / employee_name (char)          : previously in module hr_homeworking
+hr           / hr.employee.location     / work_location_id (many2one)   : previously in module hr_homeworking
+hr           / hr.employee.location     / work_location_name (char)     : previously in module hr_homeworking
+hr           / hr.employee.location     / work_location_type (selection): previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / hr.employee.type         / code (char)                   : NEW hasdefault: compute
+hr           / hr.employee.type         / company_id (many2one)         : NEW relation: res.company
+hr           / hr.employee.type         / country_id (many2one)         : NEW relation: res.country
+hr           / hr.employee.type         / employee_ids (one2many)       : NEW relation: hr.employee
+hr           / hr.employee.type         / name (char)                   : NEW required, translate
+hr           / hr.employee.type         / sequence (integer)            : NEW hasdefault: default
+# NOTHING TO DO: same columns as hr.contract.type after the rename. code already has a value, so the compute does not overwrite it. company_id is optional.
+hr           / hr.job                   / company_id (many2one)         : now required
+# DONE: pre-migration fills NULL company_id from the department, then the first company.
+hr           / hr.job                   / contract_type_id (many2one)   : DEL relation: hr.contract.type
+hr           / hr.job                   / employee_type_id (many2one)   : NEW relation: hr.employee.type
+# DONE: contract_type_id is renamed to employee_type_id. The comodel is hr.employee.type after the model rename.
+hr           / hr.job                   / recruiter_id (many2one)       : NEW relation: hr.employee, hasdefault: default
+# DONE: pre-migration sets the employee of hr.job.user_id, preferring the job company. NULL when the user has no employee.
+hr           / hr.job                   / user_id (many2one)            : DEL relation: res.users
+# DONE: value moved to recruiter_id. The users column is left in place (columns are not dropped).
+hr           / hr.job                   / website_message_ids (one2many): DEL relation: mail.message
+# NOTHING TO DO: mail.thread one2many, no column to move.
+hr           / hr.version               / additional_note (text)        : DEL
+# DONE: pre-migration copies the current version's additional_note onto hr.employee before the version column is dropped.
+hr           / hr.version               / contract_type_id (many2one)   : DEL relation: hr.contract.type
+# DONE: renamed to employee_type_id. A type that 20.0 still ships is kept.
+hr           / hr.version               / departure_date (date)         : not stored anymore
+hr           / hr.version               / departure_date (date)         : now related
+# DONE: legacy copy, then a hr.employee.departure row. The field is related to departure_id afterwards.
+hr           / hr.version               / departure_description (html)  : not stored anymore
+hr           / hr.version               / departure_description (html)  : now related
+# DONE: legacy copy, then hr.employee.departure.departure_description.
+hr           / hr.version               / departure_id (many2one)       : NEW relation: hr.employee.departure
+# DONE: post-migration points this at the departure row created from the legacy columns.
+hr           / hr.version               / departure_reason_id (many2one): not stored anymore
+hr           / hr.version               / departure_reason_id (many2one): now related
+# DONE: legacy copy. A missing reason uses the first hr.departure.reason so the required field can be filled.
+hr           / hr.version               / employee_type (selection)     : DEL required, selection_keys: ['contractor', 'employee', 'freelance', 'student', 'trainee', 'worker']
+# DONE: copied to a legacy column. Post-migration maps it to employee_type_id when that column is NULL or still points at a contract type removed from the 20.0 data (full_time, part_time, permanent, statutory, temporary). employee->contract_type_employee, worker->contract_type_employee, student->contract_type_student, trainee->contract_type_intern, contractor and freelance->contract_type_interim. 20.0 has no worker/contractor/freelance type; worker was the payroll split, Interim is the external engagement.
+hr           / hr.version               / employee_type_id (many2one)   : NEW relation: hr.employee.type
+# DONE: renamed from contract_type_id, then filled from the legacy selection when it is still NULL or points at a removed standard contract type.
+hr           / hr.version               / fixed_term (boolean)          : NEW
+# NOTHING TO DO: new optional boolean.
+hr           / hr.version               / is_flexible (boolean)         : DEL
+hr           / hr.version               / is_fully_flexible (boolean)   : DEL
+# NOTHING TO DO: computed column removed. OpenUpgrade does not drop it.
+hr           / hr.version               / resource_calendar_id (many2one): now required
+# DONE: pre-migration fills NULL version calendars from the company calendar, then any calendar.
+hr           / hr.version               / sex (selection)               : selection_keys removed: [other]
+# DONE: pre-migration sets sex 'other' to NULL. The key is gone and the field is not required.
+hr           / hr.version               / ssnid (char)                  : DEL
+# NOTHING TO DO: column is kept by OpenUpgrade. No successor field.
+hr           / hr.version               / tz (selection)                : is now stored
+hr           / hr.version               / tz (selection)                : not related anymore
+hr           / hr.version               / tz (selection)                : now required
+# DONE: pre-migration adds the stored column and copies hr.employee.tz (UTC when empty).
+hr           / hr.version               / website_message_ids (one2many): DEL relation: mail.message
+# NOTHING TO DO: mail.thread one2many, no column to move.
+hr           / mail.activity            / technical_usage (False)       : NEW selection_keys: ['hr_expiring_contract', 'hr_expiring_work_permit', 'none'], mode: modify
+# NOTHING TO DO: new selection keys on mail.activity, loaded with hr.
+hr           / mail.activity.plan.template / responsible_type (False)      : selection_keys added: [role], removed: [coach]
+# NOTHING TO DO: selection keys. coach is no longer offered; stored values remain.
+hr           / res.users                / additional_note (text)        : not related anymore
+hr           / res.users                / additional_note (text)        : now a function
+# DONE: pre-migration copies the current version's additional_note onto hr.employee before the version column is dropped.
+hr           / res.users                / all_employee_ids (one2many)   : NEW relation: hr.employee
+hr           / res.users                / bank_account_ids (many2many)  : not related anymore
+hr           / res.users                / bank_account_ids (many2many)  : now a function
+hr           / res.users                / category_ids (many2many)      : not related anymore
+hr           / res.users                / category_ids (many2many)      : now a function
+hr           / res.users                / emergency_contact (char)      : not related anymore
+hr           / res.users                / emergency_contact (char)      : now a function
+hr           / res.users                / emergency_phone (char)        : not related anymore
+hr           / res.users                / emergency_phone (char)        : now a function
+hr           / res.users                / employee_bank_account_ids (many2many): not related anymore
+hr           / res.users                / employee_bank_account_ids (many2many): now a function
+hr           / res.users                / employee_public_ids (one2many): NEW relation: hr.employee.public
+# NOTHING TO DO: related hr fields on res.users become computed. The stored values stay on the employee and the version.
+hr           / res.users                / friday_location_id (many2one) : previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / res.users                / job_title (char)              : not related anymore
+hr           / res.users                / job_title (char)              : now a function
+hr           / res.users                / km_home_work (integer)        : not related anymore
+hr           / res.users                / km_home_work (integer)        : now a function
+hr           / res.users                / mobile_phone (char)           : not related anymore
+hr           / res.users                / mobile_phone (char)           : now a function
+# NOTHING TO DO: related hr fields on res.users become computed. The stored values stay on the employee and the version.
+hr           / res.users                / monday_location_id (many2one) : previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / res.users                / pin (char)                    : not related anymore
+hr           / res.users                / pin (char)                    : now a function
+hr           / res.users                / private_city (char)           : not related anymore
+hr           / res.users                / private_city (char)           : now a function
+hr           / res.users                / private_country_id (many2one) : not related anymore
+hr           / res.users                / private_country_id (many2one) : now a function
+hr           / res.users                / private_email (char)          : not related anymore
+hr           / res.users                / private_email (char)          : now a function
+hr           / res.users                / private_phone (char)          : not related anymore
+hr           / res.users                / private_phone (char)          : now a function
+hr           / res.users                / private_state_id (many2one)   : not related anymore
+hr           / res.users                / private_state_id (many2one)   : now a function
+hr           / res.users                / private_street (char)         : not related anymore
+hr           / res.users                / private_street (char)         : now a function
+hr           / res.users                / private_street2 (char)        : not related anymore
+hr           / res.users                / private_street2 (char)        : now a function
+hr           / res.users                / private_zip (char)            : not related anymore
+hr           / res.users                / private_zip (char)            : now a function
+# NOTHING TO DO: related hr fields on res.users become computed. The stored values stay on the employee and the version.
+hr           / res.users                / saturday_location_id (many2one): previously in module hr_homeworking
+hr           / res.users                / sunday_location_id (many2one) : previously in module hr_homeworking
+hr           / res.users                / thursday_location_id (many2one): previously in module hr_homeworking
+hr           / res.users                / tuesday_location_id (many2one): previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / res.users                / visa_expire (date)            : not related anymore
+hr           / res.users                / visa_expire (date)            : now a function
+# NOTHING TO DO: related hr fields on res.users become computed. The stored values stay on the employee and the version.
+hr           / res.users                / wednesday_location_id (many2one): previously in module hr_homeworking
+# NOTHING TO DO: source module is merged in apriori (hr_homeworking, hr_org_chart or hr_hourly_cost). Columns are already on the table when that module was installed.
+hr           / res.users                / work_contact_id (many2one)    : not related anymore
+hr           / res.users                / work_contact_id (many2one)    : now a function
+hr           / res.users                / work_email (char)             : not related anymore
+hr           / res.users                / work_email (char)             : now a function
+hr           / res.users                / work_location_id (many2one)   : not related anymore
+hr           / res.users                / work_location_id (many2one)   : now a function
+hr           / res.users                / work_phone (char)             : not related anymore
+hr           / res.users                / work_phone (char)             : now a function
+# NOTHING TO DO: related hr fields on res.users become computed. The stored values stay on the employee and the version.
+hr           / resource.calendar        / version_ids (one2many)        : NEW relation: hr.version
+# NOTHING TO DO: inverse of hr.version.resource_calendar_id. No column on the calendar.
+hr_homeworking / res.users                / friday_location_id (many2one) : not related anymore
+hr_homeworking / res.users                / friday_location_id (many2one) : now a function
+hr_homeworking / res.users                / monday_location_id (many2one) : not related anymore
+hr_homeworking / res.users                / monday_location_id (many2one) : now a function
+hr_homeworking / res.users                / saturday_location_id (many2one): not related anymore
+hr_homeworking / res.users                / saturday_location_id (many2one): now a function
+hr_homeworking / res.users                / sunday_location_id (many2one) : not related anymore
+hr_homeworking / res.users                / sunday_location_id (many2one) : now a function
+hr_homeworking / res.users                / thursday_location_id (many2one): not related anymore
+hr_homeworking / res.users                / thursday_location_id (many2one): now a function
+hr_homeworking / res.users                / tuesday_location_id (many2one): not related anymore
+hr_homeworking / res.users                / tuesday_location_id (many2one): now a function
+hr_homeworking / res.users                / wednesday_location_id (many2one): not related anymore
+hr_homeworking / res.users                / wednesday_location_id (many2one): now a function
+# NOTHING TO DO: related hr fields on res.users become computed. The stored values stay on the employee and the version.
+---XML records in module 'hr'---
+DEL hr.contract.type: hr.contract_type_apprenticeship (noupdate)
+DEL hr.contract.type: hr.contract_type_employee (noupdate)
+DEL hr.contract.type: hr.contract_type_full_time (noupdate)
+DEL hr.contract.type: hr.contract_type_interim (noupdate)
+DEL hr.contract.type: hr.contract_type_intern (noupdate)
+DEL hr.contract.type: hr.contract_type_part_time (noupdate)
+DEL hr.contract.type: hr.contract_type_permanent (noupdate)
+DEL hr.contract.type: hr.contract_type_seasonal (noupdate)
+DEL hr.contract.type: hr.contract_type_statutory (noupdate)
+DEL hr.contract.type: hr.contract_type_student (noupdate)
+DEL hr.contract.type: hr.contract_type_temporary (noupdate)
+DEL hr.contract.type: hr.contract_type_thesis (noupdate)
+# DONE: columns survive the model rename.
+NEW hr.departure.reason: hr.departure_dead (noupdate)
+# NOTHING TO DO: new noupdate reason, created by the hr data file.
+DEL hr.employee: hr.employee_admin (noupdate)
+# NOTHING TO DO: noupdate record removed from the data file. End-of-module cleanup does not delete noupdate rows.
+NEW hr.employee.type: hr.contract_type_apprenticeship (noupdate)
+NEW hr.employee.type: hr.contract_type_company_executive (noupdate)
+NEW hr.employee.type: hr.contract_type_employee (noupdate)
+NEW hr.employee.type: hr.contract_type_interim (noupdate)
+NEW hr.employee.type: hr.contract_type_intern (noupdate)
+NEW hr.employee.type: hr.contract_type_seasonal (noupdate)
+NEW hr.employee.type: hr.contract_type_student (noupdate)
+NEW hr.employee.type: hr.contract_type_thesis (noupdate)
+# NOTHING TO DO: same columns as hr.contract.type after the rename. code already has a value, so the compute does not overwrite it. company_id is optional.
+DEL hr.payroll.structure.type: hr.structure_type_employee_cp200_pfi (noupdate)
+DEL hr.payroll.structure.type: hr.structure_type_worker (noupdate)
+# NOTHING TO DO: noupdate payroll structure types removed from the data file. Rows are kept.
+NEW ir.access: hr.access_hr_bank_account_allocation_wizard
+NEW ir.access: hr.access_hr_bank_account_allocation_wizard_line
+NEW ir.access: hr.access_hr_contract_type_manager
+NEW ir.access: hr.access_hr_department_employee
+NEW ir.access: hr.access_hr_department_user
+NEW ir.access: hr.access_hr_departure_reason
+NEW ir.access: hr.access_hr_employee_category_emp
+NEW ir.access: hr.access_hr_employee_category_user
+NEW ir.access: hr.access_hr_employee_create_version_wizard
+NEW ir.access: hr.access_hr_employee_departure
+NEW ir.access: hr.access_hr_employee_public_user
+NEW ir.access: hr.access_hr_employee_resource_user
+NEW ir.access: hr.access_hr_employee_system_user
+NEW ir.access: hr.access_hr_employee_user
+NEW ir.access: hr.access_hr_job_employee
+NEW ir.access: hr.access_hr_job_user
+NEW ir.access: hr.access_hr_payroll_structure_type_hr_contract_manager
+NEW ir.access: hr.access_hr_resource_calendar_attendance_user
+NEW ir.access: hr.access_hr_resource_calendar_user
+NEW ir.access: hr.access_hr_version_user
+NEW ir.access: hr.access_hr_work_location_manager
+NEW ir.access: hr.access_hr_work_location_user
+NEW ir.access: hr.access_mail_activity_plan_hr_manager
+NEW ir.access: hr.access_mail_activity_plan_template_hr_manager
+NEW ir.access: hr.access_resource_calendar_rule_multi_company
+NEW ir.access: hr.access_resource_calendar_rule_multi_company_parents
+NEW ir.access: hr.homeworking_admin_rule
+NEW ir.access: hr.homeworking_own_rule
+NEW ir.access: hr.hr_dept_comp_rule
+NEW ir.access: hr.hr_dept_hr_officer_access_rule
+NEW ir.access: hr.hr_dept_manager_access_rule
+NEW ir.access: hr.hr_employee_comp_rule
+NEW ir.access: hr.hr_job_comp_rule
+NEW ir.access: hr.ir_rule_hr_contract_multi_company
+NEW ir.access: hr.ir_rule_hr_contract_type_multi_company
+NEW ir.access: hr.ir_rule_hr_departure_reason_multi_company
+NEW ir.access: hr.ir_rule_hr_employee_departure_company
+NEW ir.access: hr.ir_rule_hr_employee_departure_multi_company
+NEW ir.access: hr.ir_rule_hr_payroll_structure_type_multi_company
+NEW ir.access: hr.ir_rule_res_partner_bank_employees
+NEW ir.access: hr.ir_rule_res_partner_bank_internal_users
+NEW ir.access: hr.ir_rule_res_partner_bank_internal_users_1
+NEW ir.access: hr.mail_plan_rule_group_hr_manager
+NEW ir.access: hr.mail_plan_templates_rule_group_hr_manager
+# NOTHING TO DO: security loaded from the module CSV. ir.model.access was merged into ir.access by base.
+NEW ir.actions.act_window: hr.action_hr_employee_org_chart [renamed from hr_org_chart module]
+# NOTHING TO DO: hr_org_chart is merged into hr; the xmlid moves with the module merge.
+NEW ir.actions.act_window: hr.action_hr_employee_public_org_chart [renamed from hr_org_chart module]
+# NOTHING TO DO: moved with the hr_org_chart merge.
+NEW ir.actions.act_window: hr.action_open_hr_employee_create_version_wizard
+NEW ir.actions.act_window: hr.action_partner_mass_mail
+# NOTHING TO DO: new window, loaded from XML.
+ir.actions.act_window: hr.hr_employee_public_action (deleted domain)
+# NOTHING TO DO: domain removed from the window. Standard XML reloads it.
+DEL ir.actions.act_window: hr.hr_version_wizard_action
+# NOTHING TO DO: wizard removed with the transient model.
+NEW ir.actions.act_window.view: hr.act_hr_department_hierarchy_view_kanban_action [renamed from hr_org_chart module]
+NEW ir.actions.act_window.view: hr.act_hr_department_hierarchy_view_tree_action [renamed from hr_org_chart module]
+NEW ir.actions.act_window.view: hr.act_hr_employee_public_hierarchy_view [renamed from hr_org_chart module]
+NEW ir.actions.act_window.view: hr.act_open_view_employee_list_my_hierarchy_view [renamed from hr_org_chart module]
+# NOTHING TO DO: moved with the hr_org_chart merge or loaded from XML.
+NEW ir.actions.server: hr.action_hr_employee_create_versions
+NEW ir.actions.server: hr.action_hr_employee_departure
+DEL ir.actions.server: hr.action_hr_employee_create_users
+DEL ir.actions.server: hr.action_hr_employee_create_users_confirmation
+DEL ir.actions.server: hr.action_hr_employee_load_demo_data
+# NOTHING TO DO: new or removed server actions, loaded from XML.
+NEW ir.cron: hr.ir_cron_apply_departure (noupdate)
+# NOTHING TO DO: new noupdate cron, created from the data file.
+DEL ir.model.access: hr.access_hr_bank_account_allocation_wizard
+DEL ir.model.access: hr.access_hr_bank_account_allocation_wizard_line
+DEL ir.model.access: hr.access_hr_contract_type_manager
+DEL ir.model.access: hr.access_hr_department_employee
+DEL ir.model.access: hr.access_hr_department_user
+DEL ir.model.access: hr.access_hr_departure_reason
+DEL ir.model.access: hr.access_hr_departure_wizard
+DEL ir.model.access: hr.access_hr_employee_category_emp
+DEL ir.model.access: hr.access_hr_employee_category_user
+DEL ir.model.access: hr.access_hr_employee_public_user
+DEL ir.model.access: hr.access_hr_employee_resource_user
+DEL ir.model.access: hr.access_hr_employee_system_user
+DEL ir.model.access: hr.access_hr_employee_user
+DEL ir.model.access: hr.access_hr_job_employee
+DEL ir.model.access: hr.access_hr_job_user
+DEL ir.model.access: hr.access_hr_payroll_structure_type_hr_contract_manager
+DEL ir.model.access: hr.access_hr_resource_calendar_attendance_user
+DEL ir.model.access: hr.access_hr_resource_calendar_user
+DEL ir.model.access: hr.access_hr_resource_manager
+DEL ir.model.access: hr.access_hr_version_manager
+DEL ir.model.access: hr.access_hr_version_user
+DEL ir.model.access: hr.access_hr_version_wizard
+DEL ir.model.access: hr.access_hr_work_location_manager
+DEL ir.model.access: hr.access_hr_work_location_user
+DEL ir.model.access: hr.access_mail_activity_plan_hr_manager
+DEL ir.model.access: hr.access_mail_activity_plan_template_hr_manager
+# NOTHING TO DO: replaced by ir.access rows loaded from the module.
+NEW ir.model.constraint: hr.constraint_hr_employee_location_uniq_exceptional_per_day [renamed from hr_homeworking module]
+# NOTHING TO DO: module merged into hr. The user fields are computed from the employee.
+NEW ir.model.constraint: hr.constraint_hr_version_check_wage_positive
+# NOTHING TO DO: location constraint moves with the module merge. The wage check is a new constraint on values that were already monetary.
+DEL ir.rule: hr.hr_dept_comp_rule (noupdate)
+DEL ir.rule: hr.hr_employee_comp_rule (noupdate)
+DEL ir.rule: hr.hr_employee_public_comp_rule (noupdate)
+DEL ir.rule: hr.hr_job_comp_rule (noupdate)
+DEL ir.rule: hr.ir_rule_hr_contract_manager (noupdate)
+DEL ir.rule: hr.ir_rule_hr_contract_multi_company (noupdate)
+DEL ir.rule: hr.ir_rule_hr_contract_type_multi_company (noupdate)
+DEL ir.rule: hr.ir_rule_hr_departure_reason_multi_company (noupdate)
+DEL ir.rule: hr.ir_rule_hr_payroll_structure_type_multi_company (noupdate)
+DEL ir.rule: hr.ir_rule_res_partner_bank_employees (noupdate)
+DEL ir.rule: hr.ir_rule_res_partner_bank_internal_users (noupdate)
+DEL ir.rule: hr.mail_plan_rule_group_hr_manager (noupdate)
+DEL ir.rule: hr.mail_plan_templates_rule_group_hr_manager (noupdate)
+# NOTHING TO DO: record rules were merged into ir.access by the base migration. hr reloads the access rows.
+NEW ir.ui.menu: hr.menu_config_working_times
+# NOTHING TO DO: new menu, loaded from XML.
+NEW ir.ui.view: hr.hr_department_hierarchy_view
+NEW ir.ui.view: hr.hr_employee_create_version_wizard_view_form
+NEW ir.ui.view: hr.hr_employee_departure_view_form
+NEW ir.ui.view: hr.hr_employee_hierarchy_view
+NEW ir.ui.view: hr.hr_employee_public_hierarchy_view
+NEW ir.ui.view: hr.hr_version_list_view_enhanced
+NEW ir.ui.view: hr.hr_version_search_view_enhanced
+NEW ir.ui.view: hr.res_users_view_list
+NEW ir.ui.view: hr.resource_calendar_form_view_inherit_hr
+NEW ir.ui.view: hr.resource_resource_form_view_inherit_hr
+NEW ir.ui.view: hr.resource_resource_tree_view_inherit_hr
+DEL ir.ui.view: hr.hr_departure_wizard_view_form
+DEL ir.ui.view: hr.hr_version_wizard_view_form
+# NOTHING TO DO: views are loaded from XML. Removed wizard views go with the transient models.
