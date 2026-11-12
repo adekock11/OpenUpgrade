@@ -1,0 +1,16 @@
+---Models in module 'crm_sms'---
+---Fields in module 'crm_sms'---
+---XML records in module 'crm_sms'---
+NEW ir.access: crm_sms.access_sms_template_sale_manager
+NEW ir.access: crm_sms.ir_rule_sms_template_sale_manager
+DEL ir.model.access: crm_sms.access_sms_template_sale_manager
+DEL ir.rule: crm_sms.ir_rule_sms_template_sale_manager (noupdate)
+# NOTHING TO DO: ir.model.access and ir.rule were merged into ir.access.
+# Base (OCA/OpenUpgrade#6068) renames those xmlids in pre-migration and
+# recreates standard rows from this module's ir.access.csv. Rows without a
+# standard xmlid are converted in base post-migration. Customizations of
+# noupdate standard rules are not replayed; that gap belongs to base.
+# Semantics did change and the new CSV is what gets loaded: v19 gave sale
+# managers full CRUD on every sms.template. v20 gives them read on all
+# templates and create/write/unlink only when the template model is
+# crm.lead or res.partner (ir_rule_sms_template_sale_manager).

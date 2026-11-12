@@ -1,0 +1,8 @@
+---Models in module 'crm_mail_plugin'---
+---Fields in module 'crm_mail_plugin'---
+---XML records in module 'crm_mail_plugin'---
+DEL ir.actions.act_window: crm_mail_plugin.crm_lead_action_form_edit
+DEL ir.actions.server: crm_mail_plugin.lead_creation_prefilled_action
+# DONE: post-migration delete_records_safely_by_xml_id. 20.0 ships no data
+# files. lead_creation_prefilled_action called crm.lead._form_view_auto_fill(),
+# which no longer exists. The form action only opened the lead form.
