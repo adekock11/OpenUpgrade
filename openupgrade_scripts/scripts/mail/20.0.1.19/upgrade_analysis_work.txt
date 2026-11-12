@@ -42,6 +42,8 @@ mail         / discuss.channel          / is_readonly (boolean)         : NEW
 # NOTHING TO DO: new feature with no 19.0 data.
 
 mail         / discuss.channel          / member_indices (char)         : NEW isfunction: function, stored
+# DONE: pre-migration fills p<partner>,g<guest> (sorted ids) and merges
+# duplicate chats onto the oldest one. Chats with no members become groups.
 
 # NOTHING TO DO: stored compute filled by the ORM for chats. The partial unique index
 # can fail the upgrade if two chats already have the same members; that is reported
@@ -634,8 +636,11 @@ NEW ir.model.constraint: mail.constraint_discuss_channel_member_channel_id_id_id
 # the canned-response admin implied group, only where the 19.0 value is still in place.
 
 NEW ir.model.constraint: mail.constraint_discuss_channel_member_indices_channel_check
+# DONE: satisfied by the member_indices pre-migration.
 NEW ir.model.constraint: mail.constraint_discuss_channel_member_indices_chat_check
+# DONE: satisfied by the member_indices pre-migration.
 NEW ir.model.constraint: mail.constraint_discuss_channel_member_indices_unique
+# DONE: satisfied by the member_indices pre-migration.
 
 # NOTHING TO DO: stored compute filled by the ORM for chats. The partial unique index
 # can fail the upgrade if two chats already have the same members; that is reported
