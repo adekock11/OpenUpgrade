@@ -1,0 +1,10 @@
+---Models in module 'calendar_sms'---
+# NOTHING TO DO
+
+---Fields in module 'calendar_sms'---
+# NOTHING TO DO
+
+---XML records in module 'calendar_sms'---
+NEW ir.ui.view: calendar_sms.calendar_alarm_view_kanban
+# NOTHING TO DO: new view, loaded by the module update. No stored data changed.
+# The v19 sms_notify_responsible rename lives in the 19.0 calendar scripts.

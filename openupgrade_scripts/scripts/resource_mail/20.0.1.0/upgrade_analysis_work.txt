@@ -1,0 +1,13 @@
+---Models in module 'resource_mail'---
+# NOTHING TO DO
+
+---Fields in module 'resource_mail'---
+resource_mail / resource.resource        / color (integer)               : module is now 'resource' ('resource_mail')
+# NOTHING TO DO: the column stays on resource_resource. resource now owns the
+# field (see resource/20.0.1.1). ir.model.fields.module is updated when the
+# resource module is reflected, which happens before resource_mail because
+# resource_mail depends on resource. im_status was a non-stored related and
+# is gone with no column to migrate.
+
+---XML records in module 'resource_mail'---
+# NOTHING TO DO
