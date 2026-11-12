@@ -432,6 +432,9 @@ NEW ir.access: mail.access_mail_guest_system
 NEW ir.access: mail.access_mail_guest_user
 NEW ir.access: mail.access_mail_ice_server_system
 NEW ir.access: mail.access_mail_link_preview_admin
+# DONE: pre-migration deduplicates mail.link.preview by source_url (lowest id)
+# and re-points mail.message.link.preview so the unique source_url index
+# can be created. models.UniqueIndex is not a separate analysis row.
 NEW ir.access: mail.access_mail_mail_system
 NEW ir.access: mail.access_mail_message_link_preview_erp_manager
 NEW ir.access: mail.access_mail_message_reaction_system
