@@ -815,8 +815,86 @@ def _merge_duplicate_chats(env):
     )
 
 
+def _dedupe_mail_link_preview(cr):
+    """``mail.link.preview`` gains a unique index on ``source_url``.
+
+    Keep the lowest id for each URL, point ``mail.message.link.preview`` at
+    it, and drop the other preview rows. A message that already has the kept
+    preview loses the duplicate link so ``(message_id, link_preview_id)``
+    stays unique.
+    """
+    if not openupgrade.table_exists(cr, "mail_link_preview"):
+        return
+    if not openupgrade.column_exists(cr, "mail_link_preview", "source_url"):
+        return
+    cr.execute("DROP TABLE IF EXISTS openupgrade_link_preview_dup")
+    openupgrade.logged_query(
+        cr,
+        """
+        CREATE TEMP TABLE openupgrade_link_preview_dup AS
+        SELECT preview.id AS old_id, keeper.id AS new_id
+          FROM mail_link_preview AS preview
+          JOIN (
+                SELECT source_url, MIN(id) AS id
+                  FROM mail_link_preview
+                 WHERE source_url IS NOT NULL
+                 GROUP BY source_url
+                HAVING COUNT(*) > 1
+               ) AS keeper
+            ON keeper.source_url = preview.source_url
+         WHERE preview.id <> keeper.id
+        """,
+    )
+    if openupgrade.table_exists(cr, "mail_message_link_preview"):
+        openupgrade.logged_query(
+            cr,
+            """
+            DELETE FROM mail_message_link_preview AS link
+             USING openupgrade_link_preview_dup AS dup
+             WHERE link.link_preview_id = dup.old_id
+               AND EXISTS (
+                    SELECT 1
+                      FROM mail_message_link_preview AS kept
+                     WHERE kept.message_id = link.message_id
+                       AND kept.link_preview_id = dup.new_id
+               )
+            """,
+        )
+        openupgrade.logged_query(
+            cr,
+            """
+            UPDATE mail_message_link_preview AS link
+               SET link_preview_id = dup.new_id
+              FROM openupgrade_link_preview_dup AS dup
+             WHERE link.link_preview_id = dup.old_id
+            """,
+        )
+        # Two duplicate previews of the same URL on one message both move
+        # onto the kept preview. Drop the extra link so
+        # (message_id, link_preview_id) stays unique.
+        openupgrade.logged_query(
+            cr,
+            """
+            DELETE FROM mail_message_link_preview AS extra
+             USING mail_message_link_preview AS kept
+             WHERE extra.message_id = kept.message_id
+               AND extra.link_preview_id = kept.link_preview_id
+               AND extra.id > kept.id
+            """,
+        )
+    openupgrade.logged_query(
+        cr,
+        """
+        DELETE FROM mail_link_preview
+         WHERE id IN (SELECT old_id FROM openupgrade_link_preview_dup)
+        """,
+    )
+    cr.execute("DROP TABLE IF EXISTS openupgrade_link_preview_dup")
+
+
 @openupgrade.migrate()
 def migrate(env, version):
+    _dedupe_mail_link_preview(env.cr)
     _merge_duplicate_chats(env)
     _install_mail_tracking(env.cr)
     _blank_views_referencing_removed_fields(env.cr)
