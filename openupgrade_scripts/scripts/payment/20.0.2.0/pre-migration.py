@@ -180,7 +180,16 @@ def _fill_provider_from_usage(cr):
 
 
 def _delete_unlinked_methods(cr):
-    """Drop methods that have no provider and nothing pointing at them."""
+    """Drop methods that have no provider and nothing pointing at them.
+
+    20.0 requires ``provider_id``. Each method is created by a provider
+    module's data file with that provider set (for example
+    ``payment_adyen.payment_method_discover``). The 19.0 catalog rows
+    (Cirrus, Discover, JCB, and the rest) are one shared record with no
+    provider link. When nothing references them, the row and its xmlid are
+    removed so the provider data file can create a new method. A method that
+    is still referenced, or that is another method's primary method, is kept.
+    """
     filters = []
     for table, column in _payment_method_fks(cr):
         filters.append(
@@ -201,44 +210,42 @@ def _delete_unlinked_methods(cr):
                 """
             )
         )
-    if openupgrade.table_exists(cr, "ir_model_data"):
-        filters.append(
-            sql.SQL(
-                """
-                AND NOT EXISTS (
-                    SELECT 1
-                      FROM ir_model_data
-                     WHERE model = 'payment.method'
-                       AND res_id = method.id
-                )
-                """
-            )
-        )
     extra = sql.SQL(" ").join(filters)
+    cr.execute("DROP TABLE IF EXISTS openupgrade_payment_method_drop")
     openupgrade.logged_query(
         cr,
         sql.SQL(
             """
-            DELETE FROM payment_method AS method
+            CREATE TEMP TABLE openupgrade_payment_method_drop AS
+            SELECT method.id
+              FROM payment_method AS method
              WHERE method.provider_id IS NULL
                {extra}
             """
         ).format(extra=extra),
     )
+    if openupgrade.table_exists(cr, "ir_model_data"):
+        openupgrade.logged_query(
+            cr,
+            """
+            DELETE FROM ir_model_data
+             WHERE model = 'payment.method'
+               AND res_id IN (SELECT id FROM openupgrade_payment_method_drop)
+            """,
+        )
+    openupgrade.logged_query(
+        cr,
+        """
+        DELETE FROM payment_method
+         WHERE id IN (SELECT id FROM openupgrade_payment_method_drop)
+        """,
+    )
+    cr.execute("DROP TABLE IF EXISTS openupgrade_payment_method_drop")
 
 
 def _deduplicate_provider_code(cr):
     """``UNIQUE(provider_id, code)`` is new. Keep the lowest id."""
-    cr.execute(
-        """
-        SELECT code IS NOT NULL
-          FROM information_schema.columns
-         WHERE table_schema = current_schema()
-           AND table_name = 'payment_method'
-           AND column_name = 'code'
-        """
-    )
-    if not cr.fetchone():
+    if not openupgrade.column_exists(cr, "payment_method", "code"):
         return
     cr.execute("DROP TABLE IF EXISTS openupgrade_payment_method_dedup")
     openupgrade.logged_query(
@@ -327,11 +334,10 @@ def _migrate_payment_method_provider(env):
     remaining = cr.fetchone()[0]
     if remaining:
         _logger.warning(
-            "%s payment.method rows still have no provider_id. "
-            "The NOT NULL constraint cannot be added for them. "
-            "They are linked to more than one provider with no single "
-            "transaction/token provider, or nothing in the relation table "
-            "identifies a provider.",
+            "%s payment.method rows still have no provider_id, so the NOT "
+            "NULL constraint cannot be added. Each of them is still "
+            "referenced, and no single provider could be taken from the old "
+            "relation or from that usage.",
             remaining,
         )
 

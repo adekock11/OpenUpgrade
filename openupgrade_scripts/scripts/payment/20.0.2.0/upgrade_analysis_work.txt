@@ -11,8 +11,10 @@ payment      / payment.method           / provider_ids (many2many)      : DEL re
 # DONE: pre-migration copies payment_method_payment_provider_rel into provider_id.
 # The lowest provider id keeps the row; further providers get a copy.
 # Transactions and tokens follow the provider they were paid with.
-# Methods with no provider and no references are deleted. Rows that still
-# have no provider are logged; the NOT NULL constraint stays off for them.
+# Unreferenced methods with no provider, including the old shared catalog
+# rows and their xmlids, are deleted so provider-module data can recreate
+# them with provider_id set. Referenced rows that still have no provider
+# are logged; the NOT NULL constraint stays off for those.
 payment      / payment.provider         / _order                        : _order is now 'module_state desc, is_published desc, sequence, name' ('module_state, state desc, sequence, name')
 payment      / payment.provider         / active (boolean)              : NEW hasdefault: default
 payment      / payment.provider         / color (integer)               : DEL
