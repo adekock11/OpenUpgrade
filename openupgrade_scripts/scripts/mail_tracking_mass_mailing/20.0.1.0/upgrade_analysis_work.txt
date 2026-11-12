@@ -1,0 +1,18 @@
+---Models in module 'mail_tracking_mass_mailing'---
+---Fields in module 'mail_tracking_mass_mailing'---
+mail_tracking_mass_mailing / mail.message             / source_mailing_id (many2one)  : NEW relation: mailing.mailing
+
+# NOTHING TO DO: new auto_install glue. source_mailing_id is a new column. mail's
+# pre-migration marks this module to install when mass_mailing is already installed,
+# because update_list() ran before mail_tracking was scheduled and would otherwise miss
+# the auto_install.
+
+---XML records in module 'mail_tracking_mass_mailing'---
+NEW ir.ui.view: mail_tracking_mass_mailing.mail_message_view_form
+NEW ir.ui.view: mail_tracking_mass_mailing.mail_message_view_list
+NEW ir.ui.view: mail_tracking_mass_mailing.mail_message_view_search
+
+# NOTHING TO DO: new auto_install glue. source_mailing_id is a new column. mail's
+# pre-migration marks this module to install when mass_mailing is already installed,
+# because update_list() ran before mail_tracking was scheduled and would otherwise miss
+# the auto_install.
