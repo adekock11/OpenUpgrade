@@ -35,7 +35,9 @@ hr           / hr.plan.activity.type    / responsible_id (many2one)     : DEL re
 hr           / hr.plan.activity.type    / summary (char)                : DEL
 hr           / mail.activity.plan       / department_id (many2one)      : NEW relation: hr.department, hasdefault: compute
 hr           / mail.activity.plan.template / responsible_type (False)      : NEW selection_keys: ['coach', 'employee', 'manager', 'on_demand', 'other'], mode: modify
-# DONE: pre-migration: move data into mail.activity.plan
+# DONE: pre-migration: move data into mail.activity.plan. When
+# hr_plan_hr_plan_activity_type_rel still exists (databases started before
+# Odoo 16, where plan_id is NULL), one template is created per link.
 
 hr           / hr.department            / rating_ids (one2many)         : NEW relation: rating.rating
 # NOTHING TO DO

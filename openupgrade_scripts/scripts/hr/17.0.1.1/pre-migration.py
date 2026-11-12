@@ -53,19 +53,77 @@ def _hr_plan_sync_to_mail_activity_plan(env):
         ALTER TABLE mail_activity_plan_template
         ADD COLUMN hr_plan_activity_type_legacy_id INTEGER""",
     )
-    hr_plan_activity_type_query = """
-        INSERT INTO mail_activity_plan_template (
-            activity_type_id, responsible_id, plan_id, responsible_type,
-            summary, note, create_uid, write_uid, create_date,
-            write_date, hr_plan_activity_type_legacy_id
+    # Databases created before Odoo 16 stored the plan link in
+    # hr_plan_hr_plan_activity_type_rel. On 16, hr_plan_activity_type.plan_id
+    # is NULL for those rows, so a join on plan_id copies nothing and the
+    # xmlids still point at hr.plan.activity.type (KeyError while loading
+    # hr/data/hr_data.xml, onboarding_setup_it_materials).
+    rel = "hr_plan_hr_plan_activity_type_rel"
+    if (
+        openupgrade.table_exists(env.cr, rel)
+        and openupgrade.column_exists(env.cr, rel, "hr_plan_id")
+        and openupgrade.column_exists(env.cr, rel, "hr_plan_activity_type_id")
+    ):
+        # One plan: fill plan_id. Several plans: leave plan_id NULL and expand
+        # one template per link below.
+        openupgrade.logged_query(
+            env.cr,
+            f"""
+            UPDATE hr_plan_activity_type AS activity
+               SET plan_id = link.hr_plan_id
+              FROM (
+                    SELECT hr_plan_activity_type_id, MIN(hr_plan_id) AS hr_plan_id
+                      FROM {rel}
+                     GROUP BY hr_plan_activity_type_id
+                    HAVING COUNT(DISTINCT hr_plan_id) = 1
+                   ) AS link
+             WHERE activity.id = link.hr_plan_activity_type_id
+               AND activity.plan_id IS NULL
+            """,
         )
-        SELECT
-            hpat.activity_type_id, hpat.responsible_id, map.id, hpat.responsible,
-            hpat.summary, hpat.note, hpat.create_uid, hpat.write_uid, hpat.create_date,
-            hpat.write_date, hpat.id
-        FROM hr_plan_activity_type hpat
-        JOIN mail_activity_plan map ON hpat.plan_id = map.hr_plan_legacy_id
-        """
+        hr_plan_activity_type_query = f"""
+            INSERT INTO mail_activity_plan_template (
+                activity_type_id, responsible_id, plan_id, responsible_type,
+                summary, note, create_uid, write_uid, create_date,
+                write_date, hr_plan_activity_type_legacy_id
+            )
+            SELECT
+                hpat.activity_type_id, hpat.responsible_id, map.id, hpat.responsible,
+                hpat.summary, hpat.note, hpat.create_uid, hpat.write_uid,
+                hpat.create_date, hpat.write_date, hpat.id
+            FROM {rel} AS rel
+            JOIN hr_plan_activity_type AS hpat
+              ON hpat.id = rel.hr_plan_activity_type_id
+            JOIN mail_activity_plan AS map
+              ON map.hr_plan_legacy_id = rel.hr_plan_id
+            UNION ALL
+            SELECT
+                hpat.activity_type_id, hpat.responsible_id, map.id, hpat.responsible,
+                hpat.summary, hpat.note, hpat.create_uid, hpat.write_uid,
+                hpat.create_date, hpat.write_date, hpat.id
+            FROM hr_plan_activity_type AS hpat
+            JOIN mail_activity_plan AS map
+              ON hpat.plan_id = map.hr_plan_legacy_id
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM {rel} AS rel
+                 WHERE rel.hr_plan_activity_type_id = hpat.id
+            )
+            """
+    else:
+        hr_plan_activity_type_query = """
+            INSERT INTO mail_activity_plan_template (
+                activity_type_id, responsible_id, plan_id, responsible_type,
+                summary, note, create_uid, write_uid, create_date,
+                write_date, hr_plan_activity_type_legacy_id
+            )
+            SELECT
+                hpat.activity_type_id, hpat.responsible_id, map.id, hpat.responsible,
+                hpat.summary, hpat.note, hpat.create_uid, hpat.write_uid,
+                hpat.create_date, hpat.write_date, hpat.id
+            FROM hr_plan_activity_type hpat
+            JOIN mail_activity_plan map ON hpat.plan_id = map.hr_plan_legacy_id
+            """
     openupgrade.logged_query(env.cr, hr_plan_activity_type_query)
     # Reassign standard data XML-IDs for pointing to the new records
     openupgrade.logged_query(
@@ -84,18 +142,24 @@ def _hr_plan_sync_to_mail_activity_plan(env):
         env.cr,
         """
         UPDATE ir_model_data imd
-        SET model = 'mail.activity.plan.template', res_id = mapt.id
+        SET model = 'mail.activity.plan.template', res_id = picked.id
         FROM ir_model_data imd2
-        JOIN mail_activity_plan_template mapt ON
-            mapt.hr_plan_activity_type_legacy_id = imd2.res_id
-            AND imd2.name IN (
+        JOIN (
+            SELECT DISTINCT ON (hr_plan_activity_type_legacy_id)
+                   id, hr_plan_activity_type_legacy_id
+              FROM mail_activity_plan_template
+             WHERE hr_plan_activity_type_legacy_id IS NOT NULL
+             ORDER BY hr_plan_activity_type_legacy_id, id
+        ) AS picked
+          ON picked.hr_plan_activity_type_legacy_id = imd2.res_id
+         AND imd2.name IN (
                 'onboarding_setup_it_materials',
                 'onboarding_plan_training',
                 'onboarding_training',
                 'offboarding_setup_compute_out_delais',
                 'offboarding_take_back_hr_materials'
             )
-            AND imd2.module = 'hr'
+         AND imd2.module = 'hr'
         WHERE imd.id = imd2.id""",
     )
 
