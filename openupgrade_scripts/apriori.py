@@ -28,3 +28,10 @@ merged_models = {
     # odoo
     # OCA/...
 }
+
+# Modules dropped from the distribution. base pre-migration marks them
+# ``to remove`` so Odoo uninstalls their views and assets.
+removed_modules = [
+    # odoo/design-themes: snippets library removed in 20.0, not folded into website
+    "theme_common",
+]
