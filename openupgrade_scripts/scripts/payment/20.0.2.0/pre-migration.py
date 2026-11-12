@@ -189,6 +189,31 @@ def _delete_unlinked_methods(cr):
                 sql.Identifier(column),
             )
         )
+    if openupgrade.column_exists(cr, "payment_method", "primary_payment_method_id"):
+        filters.append(
+            sql.SQL(
+                """
+                AND NOT EXISTS (
+                    SELECT 1
+                      FROM payment_method AS other
+                     WHERE other.primary_payment_method_id = method.id
+                )
+                """
+            )
+        )
+    if openupgrade.table_exists(cr, "ir_model_data"):
+        filters.append(
+            sql.SQL(
+                """
+                AND NOT EXISTS (
+                    SELECT 1
+                      FROM ir_model_data
+                     WHERE model = 'payment.method'
+                       AND res_id = method.id
+                )
+                """
+            )
+        )
     extra = sql.SQL(" ").join(filters)
     openupgrade.logged_query(
         cr,
@@ -215,6 +240,7 @@ def _deduplicate_provider_code(cr):
     )
     if not cr.fetchone():
         return
+    cr.execute("DROP TABLE IF EXISTS openupgrade_payment_method_dedup")
     openupgrade.logged_query(
         cr,
         """
