@@ -11,8 +11,15 @@ _logger = logging.getLogger(__name__)
 _REL_TABLE = "payment_method_payment_provider_rel"
 
 
-def _payment_method_fks(cr):
-    """Foreign keys that point at ``payment_method.id``."""
+def _payment_method_fks(cr, blocking_only=False):
+    """Foreign keys that point at ``payment_method.id``.
+
+    ``blocking_only`` skips ON DELETE CASCADE (``c``) and ON DELETE SET NULL
+    (``n``). Deleting the method then drops the linking rows or clears the
+    column, so those constraints do not keep a provider-less catalog method
+    alive. Country, currency and image relations are cascade. Dedup still
+    calls this with ``blocking_only`` false and rewrites every foreign key.
+    """
     cr.execute(
         """
         SELECT src.relname, att.attname
@@ -27,7 +34,12 @@ def _payment_method_fks(cr):
            AND dst.relname = 'payment_method'
            AND ns.nspname = current_schema()
            AND array_length(con.conkey, 1) = 1
-        """
+           AND (
+                %(blocking_only)s IS FALSE
+                OR con.confdeltype NOT IN ('c', 'n')
+           )
+        """,
+        {"blocking_only": blocking_only},
     )
     return [
         (table, column) for table, column in cr.fetchall() if table != "payment_method"
@@ -180,18 +192,21 @@ def _fill_provider_from_usage(cr):
 
 
 def _delete_unlinked_methods(cr):
-    """Drop methods that have no provider and nothing pointing at them.
+    """Drop methods that have no provider and no blocking reference.
 
     20.0 requires ``provider_id``. Each method is created by a provider
     module's data file with that provider set (for example
     ``payment_adyen.payment_method_discover``). The 19.0 catalog rows
-    (Cirrus, Discover, JCB, and the rest) are one shared record with no
-    provider link. When nothing references them, the row and its xmlid are
-    removed so the provider data file can create a new method. A method that
-    is still referenced, or that is another method's primary method, is kept.
+    (Discover, JCB, and the rest) are one shared record with no provider
+    link. Country, currency and image relations point at them with
+    ON DELETE CASCADE, which does not block the delete. When no RESTRICT
+    or NO ACTION foreign key points at the row, the method and its xmlid
+    are removed so the provider data file can create a new method. A method
+    that is still referenced that way, or that is another method's primary
+    method, is kept.
     """
     filters = []
-    for table, column in _payment_method_fks(cr):
+    for table, column in _payment_method_fks(cr, blocking_only=True):
         filters.append(
             sql.SQL("AND NOT EXISTS (SELECT 1 FROM {} WHERE {} = method.id)").format(
                 sql.Identifier(table),
