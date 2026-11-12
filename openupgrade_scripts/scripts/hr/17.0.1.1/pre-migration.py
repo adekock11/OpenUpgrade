@@ -2,6 +2,7 @@
 # Copyright 2025 Tecnativa - Pedro M. Baeza
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 from openupgradelib import openupgrade
+from psycopg2 import sql
 
 
 def _rename_subscription_department_ids_m2m(env):
@@ -66,50 +67,65 @@ def _hr_plan_sync_to_mail_activity_plan(env):
     ):
         # One plan: fill plan_id. Several plans: leave plan_id NULL and expand
         # one template per link below.
+        rel_ident = sql.Identifier(rel)
         openupgrade.logged_query(
             env.cr,
-            f"""
-            UPDATE hr_plan_activity_type AS activity
-               SET plan_id = link.hr_plan_id
-              FROM (
-                    SELECT hr_plan_activity_type_id, MIN(hr_plan_id) AS hr_plan_id
-                      FROM {rel}
-                     GROUP BY hr_plan_activity_type_id
-                    HAVING COUNT(DISTINCT hr_plan_id) = 1
-                   ) AS link
-             WHERE activity.id = link.hr_plan_activity_type_id
-               AND activity.plan_id IS NULL
-            """,
+            sql.SQL(
+                """
+                UPDATE hr_plan_activity_type AS activity
+                   SET plan_id = link.hr_plan_id
+                  FROM (
+                        SELECT hr_plan_activity_type_id,
+                               MIN(hr_plan_id) AS hr_plan_id
+                          FROM {rel}
+                         GROUP BY hr_plan_activity_type_id
+                        HAVING COUNT(DISTINCT hr_plan_id) = 1
+                       ) AS link
+                 WHERE activity.id = link.hr_plan_activity_type_id
+                   AND activity.plan_id IS NULL
+                """
+            ).format(rel=rel_ident),
         )
-        hr_plan_activity_type_query = f"""
+        # UNION (not ALL) collapses a duplicated relation row. NOT EXISTS
+        # makes a retried pre-migration insert each link only once.
+        hr_plan_activity_type_query = sql.SQL(
+            """
             INSERT INTO mail_activity_plan_template (
                 activity_type_id, responsible_id, plan_id, responsible_type,
                 summary, note, create_uid, write_uid, create_date,
                 write_date, hr_plan_activity_type_legacy_id
             )
             SELECT
-                hpat.activity_type_id, hpat.responsible_id, map.id, hpat.responsible,
-                hpat.summary, hpat.note, hpat.create_uid, hpat.write_uid,
-                hpat.create_date, hpat.write_date, hpat.id
-            FROM {rel} AS rel
-            JOIN hr_plan_activity_type AS hpat
-              ON hpat.id = rel.hr_plan_activity_type_id
-            JOIN mail_activity_plan AS map
-              ON map.hr_plan_legacy_id = rel.hr_plan_id
-            UNION ALL
-            SELECT
-                hpat.activity_type_id, hpat.responsible_id, map.id, hpat.responsible,
-                hpat.summary, hpat.note, hpat.create_uid, hpat.write_uid,
-                hpat.create_date, hpat.write_date, hpat.id
-            FROM hr_plan_activity_type AS hpat
-            JOIN mail_activity_plan AS map
-              ON hpat.plan_id = map.hr_plan_legacy_id
-            WHERE NOT EXISTS (
-                SELECT 1
-                  FROM {rel} AS rel
-                 WHERE rel.hr_plan_activity_type_id = hpat.id
-            )
+                hpat.activity_type_id, hpat.responsible_id, map.id,
+                hpat.responsible, hpat.summary, hpat.note,
+                hpat.create_uid, hpat.write_uid, hpat.create_date,
+                hpat.write_date, hpat.id
+              FROM (
+                    SELECT hr_plan_activity_type_id AS activity_id,
+                           hr_plan_id AS plan_legacy_id
+                      FROM {rel}
+                    UNION
+                    SELECT hpat.id, hpat.plan_id
+                      FROM hr_plan_activity_type AS hpat
+                     WHERE hpat.plan_id IS NOT NULL
+                       AND NOT EXISTS (
+                            SELECT 1
+                              FROM {rel} AS rel
+                             WHERE rel.hr_plan_activity_type_id = hpat.id
+                       )
+                   ) AS link
+              JOIN hr_plan_activity_type AS hpat
+                ON hpat.id = link.activity_id
+              JOIN mail_activity_plan AS map
+                ON map.hr_plan_legacy_id = link.plan_legacy_id
+             WHERE NOT EXISTS (
+                    SELECT 1
+                      FROM mail_activity_plan_template AS existing
+                     WHERE existing.hr_plan_activity_type_legacy_id = hpat.id
+                       AND existing.plan_id = map.id
+               )
             """
+        ).format(rel=rel_ident)
     else:
         hr_plan_activity_type_query = """
             INSERT INTO mail_activity_plan_template (
@@ -118,11 +134,18 @@ def _hr_plan_sync_to_mail_activity_plan(env):
                 write_date, hr_plan_activity_type_legacy_id
             )
             SELECT
-                hpat.activity_type_id, hpat.responsible_id, map.id, hpat.responsible,
-                hpat.summary, hpat.note, hpat.create_uid, hpat.write_uid,
-                hpat.create_date, hpat.write_date, hpat.id
+                hpat.activity_type_id, hpat.responsible_id, map.id,
+                hpat.responsible, hpat.summary, hpat.note,
+                hpat.create_uid, hpat.write_uid, hpat.create_date,
+                hpat.write_date, hpat.id
             FROM hr_plan_activity_type hpat
             JOIN mail_activity_plan map ON hpat.plan_id = map.hr_plan_legacy_id
+            WHERE NOT EXISTS (
+                SELECT 1
+                  FROM mail_activity_plan_template AS existing
+                 WHERE existing.hr_plan_activity_type_legacy_id = hpat.id
+                   AND existing.plan_id = map.id
+            )
             """
     openupgrade.logged_query(env.cr, hr_plan_activity_type_query)
     # Reassign standard data XML-IDs for pointing to the new records
