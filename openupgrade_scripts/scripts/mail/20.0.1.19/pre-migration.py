@@ -57,11 +57,12 @@ def _schedule_new_module(cr, name):
     up by the module-loading loop before ``ir.model.data._process_end``, which
     is what keeps moved records from being deleted as leftovers of ``mail``.
 
-    Skip the module when it is not on the addons path or a dependency is not
-    installed. Stock Odoo still installs ``mail_tracking``, and the glue
-    modules when ``mass_mailing`` / ``sms`` are installed. A database that
-    replaced ``sms`` does not get ``mail_tracking_sms``, which would crash
-    with ``TypeError: Model 'sms.composer' does not exist in registry``.
+    Skip the module when its addon path is missing or a manifest dependency
+    is not installed, to upgrade, or to install. Stock Odoo still installs
+    ``mail_tracking``, and the glue modules when ``mass_mailing`` / ``sms``
+    are installed and present on the addons path. A dependency that is
+    installed and on the path is not inspected further: a custom ``sms``
+    addon that does not define ``sms.composer`` is still treated as ``sms``.
     """
     if not get_module_path(name, display_warning=False):
         _logger.warning(
@@ -117,11 +118,11 @@ def _install_mail_tracking(cr):
     The model name and table stay ``mail.tracking.value`` /
     ``mail_tracking_value``. Installing the new module reuses that table.
     ``mail_tracking`` is scheduled first because the glue modules depend on
-    it. Each call checks the module path and the manifest dependencies, so
-    ``mail_tracking_sms`` is skipped when ``sms`` is absent or was replaced,
-    and ``mail_tracking_mass_mailing`` is skipped when ``mass_mailing`` is
-    not installed. On stock Odoo both dependencies are present and the glue
-    modules are still installed.
+    it. Each call checks the module path and the manifest dependencies.
+    ``mail_tracking_sms`` is skipped when ``sms`` is not installed or has no
+    addon path. ``mail_tracking_mass_mailing`` is skipped when
+    ``mass_mailing`` is not installed or has no addon path. On stock Odoo
+    both dependencies are present and the glue modules are still installed.
     """
     state = _schedule_new_module(cr, "mail_tracking")
     if state not in ("to install", "to upgrade", "installed"):

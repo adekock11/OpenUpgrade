@@ -10,8 +10,9 @@ model mail.tracking.value (moved to mail_tracking)
 # DONE in pre-migration: mail_tracking is not auto_install. The script marks it to
 # install when the module path exists and its dependencies are installed, then
 # mail_tracking_mass_mailing / mail_tracking_sms the same way. A database that
-# replaced sms (no module path, or sms not installed) skips mail_tracking_sms
-# instead of crashing on sms.composer. Stock Odoo still installs all three.
+# mail_tracking_sms is skipped only when sms is not installed or has no addon
+# path. A custom sms addon that is installed but has no sms.composer is not
+# detected. Stock Odoo still installs all three.
 # The model name and table mail_tracking_value are unchanged, so the history is
 # reused. Moved xmlids are renamed onto mail_tracking before _process_end.
 
