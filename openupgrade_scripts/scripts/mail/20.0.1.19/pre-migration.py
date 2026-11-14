@@ -47,8 +47,25 @@ def _ensure_column(cr, table, column, column_type):
         ("ir_act_server", "log_note_note", "jsonb"): (
             "ALTER TABLE ir_act_server ADD COLUMN log_note_note jsonb"
         ),
+        ("mail_activity", "phone", "varchar"): (
+            "ALTER TABLE mail_activity ADD COLUMN phone varchar"
+        ),
     }
     openupgrade.logged_query(cr, queries[(table, column, column_type)])
+
+
+def _add_activity_phone(cr):
+    """Create mail.activity.phone (new stored computed field in 20.0) by hand.
+
+    If the column is missing, Odoo creates it while it loads ``mail`` and
+    computes it at once for every existing activity. For phone call activities
+    that reads the record the activity is linked to, and the model of that
+    record (crm.lead, helpdesk.ticket, ...) is not in the registry yet, so the
+    update stops with ``KeyError: '<model>'`` in ``_compute_phone``. With the
+    column in place nothing is computed during the load. The values are
+    filled in ``end-migration.py``, when all models are loaded.
+    """
+    _ensure_column(cr, "mail_activity", "phone", "varchar")
 
 
 def _schedule_new_module(cr, name):
@@ -933,3 +950,4 @@ def migrate(env, version):
     _rename_starred_bookmarks(env.cr)
     _migrate_activity_chaining(env.cr)
     _migrate_server_action_notes(env.cr)
+    _add_activity_phone(env.cr)
