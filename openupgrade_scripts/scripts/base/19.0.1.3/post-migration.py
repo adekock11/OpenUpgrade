@@ -16,23 +16,150 @@ def _ir_actions_act_window_target(env):
     )
 
 
-def _ir_actions_server_child_ids(env):
-    """
-    Field was changed from m2m to o2m - set parent_id from m2m table,
-    duplicate child actions that had multiple parents
-    """
-    env.cr.execute(
+def _quoted_column_names(cr, table):
+    cr.execute(
         """
-        SELECT action_id, array_agg(server_id)
-        FROM rel_server_actions GROUP BY action_id
+        SELECT column_name
+          FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = %s
+         ORDER BY ordinal_position
+        """,
+        (table,),
+    )
+    return [row[0] for row in cr.fetchall()]
+
+
+def _copy_relation_rows(cr, table, link_column, old_id, new_id):
+    """Copy many2many rows so the duplicate keeps groups and webhook fields."""
+    if not openupgrade.table_exists(cr, table):
+        return
+    columns = _quoted_column_names(cr, table)
+    if link_column not in columns:
+        return
+    column_sql = ", ".join(f'"{column}"' for column in columns)
+    select_parts = []
+    params = []
+    for column in columns:
+        if column == link_column:
+            select_parts.append("%s")
+            params.append(new_id)
+        else:
+            select_parts.append(f'"{column}"')
+    params.append(old_id)
+    openupgrade.logged_query(
+        cr,
+        f"""
+        INSERT INTO "{table}" ({column_sql})
+        SELECT {", ".join(select_parts)}
+          FROM "{table}"
+         WHERE "{link_column}" = %s
+        """,
+        tuple(params),
+    )
+
+
+def _duplicate_server_action(cr, action_id, parent_id, stack):
+    """Insert a copy of an ir_act_server row, including inherited columns.
+
+    ir_act_server inherits ir_actions, so one insert copies the action. ``path``
+    is cleared because it is unique. Children linked through rel_server_actions
+    are copied too: ir.actions.server.child_ids is copied by the ORM.
+    """
+    if action_id in stack:
+        return None
+    columns = _quoted_column_names(cr, "ir_act_server")
+    if "id" not in columns or "parent_id" not in columns:
+        return None
+    insert_columns = [column for column in columns if column != "id"]
+    column_sql = ", ".join(f'"{column}"' for column in insert_columns)
+    select_parts = []
+    params = []
+    for column in insert_columns:
+        if column == "parent_id":
+            select_parts.append("%s")
+            params.append(parent_id)
+        elif column == "path":
+            # ir_actions.path is unique; a child copy is not a URL entry point.
+            select_parts.append("NULL")
+        else:
+            select_parts.append(f'"{column}"')
+    params.append(action_id)
+    openupgrade.logged_query(
+        cr,
+        f"""
+        INSERT INTO ir_act_server ({column_sql})
+        SELECT {", ".join(select_parts)}
+          FROM ir_act_server
+         WHERE id = %s
+        RETURNING id
+        """,
+        tuple(params),
+    )
+    new_row = cr.fetchone()
+    if not new_row:
+        return None
+    new_id = new_row[0]
+    _copy_relation_rows(cr, "ir_act_server_group_rel", "act_id", action_id, new_id)
+    _copy_relation_rows(
+        cr, "ir_act_server_webhook_field_rel", "server_id", action_id, new_id
+    )
+    cr.execute(
+        """
+        SELECT action_id
+          FROM rel_server_actions
+         WHERE server_id = %s
+         ORDER BY action_id
+        """,
+        (action_id,),
+    )
+    child_ids = [row[0] for row in cr.fetchall()]
+    child_stack = stack | {action_id}
+    for child_id in child_ids:
+        _duplicate_server_action(cr, child_id, new_id, child_stack)
+    return new_id
+
+
+def _ir_actions_server_child_ids(env):
+    """Field changed from m2m to o2m.
+
+    Set parent_id from rel_server_actions. A child with several parents is
+    duplicated with SQL, once per extra parent. The ORM copy computes
+    ``warning`` and resolves the action model, which is not in the registry
+    yet during base's post-migration (KeyError: 'project.task').
+    """
+    cr = env.cr
+    if not openupgrade.table_exists(cr, "rel_server_actions"):
+        return
+    if not openupgrade.column_exists(cr, "ir_act_server", "parent_id"):
+        return
+    cr.execute(
+        """
+        SELECT action_id, array_agg(server_id ORDER BY server_id)
+          FROM rel_server_actions
+         GROUP BY action_id
+        HAVING COUNT(*) > 1
         """
     )
-    for action_id, parent_ids in env.cr.fetchall():
-        action = env["ir.actions.server"].browse(action_id)
-        parents = env["ir.actions.server"].browse(parent_ids)
-        action.parent_id = parents[0]
-        for parent in parents[1:]:
-            action.copy({"name": action.name, "parent_id": parent.id})
+    multi_parent = cr.fetchall()
+    openupgrade.logged_query(
+        cr,
+        """
+        UPDATE ir_act_server AS child
+           SET parent_id = rel.parent_id
+          FROM (
+                SELECT action_id,
+                       (array_agg(server_id ORDER BY server_id))[1] AS parent_id
+                  FROM rel_server_actions
+                 GROUP BY action_id
+               ) AS rel
+         WHERE child.id = rel.action_id
+           AND child.parent_id IS NULL
+        """,
+    )
+    for action_id, parent_ids in multi_parent:
+        for parent_id in parent_ids[1:]:
+            _duplicate_server_action(cr, action_id, parent_id, frozenset())
 
 
 def _ir_actions_server_html_value(env):
