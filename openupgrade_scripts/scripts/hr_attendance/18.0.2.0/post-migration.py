@@ -40,6 +40,8 @@ def _hr_attendance_autoclose(env):
         env,
         [
             "hr_attendance.check_attendance_cron",
+            # The server action of the cron has its own XML-ID, delete it too
+            "hr_attendance.check_attendance_cron_ir_actions_server",
         ],
     )
 
