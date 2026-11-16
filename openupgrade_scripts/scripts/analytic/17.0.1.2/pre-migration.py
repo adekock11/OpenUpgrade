@@ -48,7 +48,15 @@ def _fill_config_parameter_analytic_project_plan(env):
                 }
             )
     if not plan_id:
-        env.cr.execute("SELECT last_value + 1 FROM account_analytic_plan_id_seq;")
+        # A sequence that has never been nextval()'d has is_called = false and
+        # its next id is last_value, not last_value + 1. Using last_value + 1
+        # stores 2 while the ORM creates analytic.analytic_plan_projects as 1.
+        env.cr.execute(
+            """
+            SELECT CASE WHEN is_called THEN last_value + 1 ELSE last_value END
+            FROM account_analytic_plan_id_seq
+            """
+        )
         plan_id = env.cr.fetchone()[0]
     env["ir.config_parameter"].set_param("analytic.project_plan", str(plan_id))
 

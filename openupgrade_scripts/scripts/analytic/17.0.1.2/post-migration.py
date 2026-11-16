@@ -7,6 +7,27 @@ from openupgradelib import openupgrade
 _deleted_xml_records = ["analytic.analytic_plan_comp_rule"]
 
 
+def _sync_analytic_project_plan_parameter(env):
+    """Repair analytic.project_plan when it points at a missing plan.
+
+    The pre-migration may store the id the projects plan is about to receive.
+    If that guess does not match analytic.analytic_plan_projects, a later
+    upgrade raises MissingError: account.analytic.plan(<id>,). A parameter that
+    already points at an existing plan is left as it is.
+    """
+    plan = env.ref("analytic.analytic_plan_projects", raise_if_not_found=False)
+    if not plan:
+        return
+    current = env["ir.config_parameter"].get_param("analytic.project_plan")
+    if (
+        current
+        and current.isdigit()
+        and env["account.analytic.plan"].browse(int(current)).exists()
+    ):
+        return
+    env["ir.config_parameter"].set_param("analytic.project_plan", str(plan.id))
+
+
 def _adjust_analytic_plan_sequence(env):
     """As now the order is by sequence, and on v16 it was the id, we have to assign the
     sequence numbers to preserve the previous order by default, for not having any
@@ -70,6 +91,7 @@ def _analytic_plan_update_applicability_into_property(env):
 
 @openupgrade.migrate()
 def migrate(env, version):
+    _sync_analytic_project_plan_parameter(env)
     _adjust_analytic_plan_sequence(env)
     openupgrade.load_data(env, "analytic", "17.0.1.2/noupdate_changes.xml")
     openupgrade.delete_records_safely_by_xml_id(
