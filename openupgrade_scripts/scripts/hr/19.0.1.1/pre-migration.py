@@ -42,7 +42,10 @@ renamed_xmlids = [
 
 deleted_xmlids = [
     "hr.ir_cron_data_check_work_permit_validity",
+    # The server action of the cron has its own XML-ID, delete it too
+    "hr.ir_cron_data_check_work_permit_validity_ir_actions_server",
     "hr.ir_cron_data_contract_update_state",
+    "hr.ir_cron_data_contract_update_state_ir_actions_server",
     "hr.ir_rule_hr_contract_employee_manager",
     "hr.ir_rule_hr_contract_history_multi_company",
     "hr_contract.group_hr_contract_employee_manager",

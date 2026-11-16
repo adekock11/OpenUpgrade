@@ -27,6 +27,8 @@ def migrate(env, version):
         env,
         [
             "mail.ir_cron_discuss_users_settings_unmute",
+            # The server action of the cron has its own XML-ID, delete it too
+            "mail.ir_cron_discuss_users_settings_unmute_ir_actions_server",
             "mail.module_category_canned_response",
         ],
     )
