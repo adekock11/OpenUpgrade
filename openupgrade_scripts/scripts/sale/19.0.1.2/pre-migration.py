@@ -43,6 +43,15 @@ _renamed_fields = [
 _renamed_xmlids = [
     ("sale_async_emails.async_emails", "sale.async_emails"),
     ("sale_async_emails.cron", "sale.send_pending_emails_cron"),
+    # The apriori merge of sale_async_emails into sale moves the XML-IDs of the
+    # module to the `sale` module before this script runs, so the two renames
+    # above find nothing and the data loading of 19.0 would create a second
+    # cron. Rename the already moved records (the cron and its server action).
+    ("sale.cron", "sale.send_pending_emails_cron"),
+    (
+        "sale.cron_ir_actions_server",
+        "sale.send_pending_emails_cron_ir_actions_server",
+    ),
 ]
 
 _deleted_xmlids = [
