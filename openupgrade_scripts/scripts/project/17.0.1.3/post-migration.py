@@ -9,6 +9,8 @@ from openupgradelib import openupgrade
 
 _deleted_xml_records = [
     "project.ir_cron_recurring_tasks",
+    # The server action of the cron has its own XML-ID, delete it too
+    "project.ir_cron_recurring_tasks_ir_actions_server",
     "project.mt_project_task_blocked",
     "project.mt_project_task_dependency_change",
     "project.mt_project_task_ready",
