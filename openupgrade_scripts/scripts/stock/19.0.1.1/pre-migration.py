@@ -24,6 +24,20 @@ _renamed_fields = [
 
 _renamed_xmlids = [
     ("stock.seq_quant_package", "stock.seq_package"),
+    # These 18.0 reports use the same report_name as the 19.0 records
+    # (stock.report_package_barcode and stock.report_package_barcode_small).
+    # Loading the new xmlids otherwise raises ir_act_report_xml_report_name_uniq.
+    # label_product_packaging is not renamed: its report_name
+    # (stock.label_product_packaging_view) differs from
+    # stock.label_packaging_barcode_view.
+    (
+        "stock.action_report_quant_package_barcode",
+        "stock.action_report_package_barcode",
+    ),
+    (
+        "stock.action_report_quant_package_barcode_small",
+        "stock.action_report_package_barcode_small",
+    ),
 ]
 
 _deleted_xmlids = [
