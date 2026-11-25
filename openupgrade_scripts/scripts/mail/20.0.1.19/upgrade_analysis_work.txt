@@ -105,6 +105,10 @@ mail         / mail.message             / ended_poll_ids (one2many)     : NEW re
 
 mail         / mail.message             / message_type (selection)      : selection_keys added: [tracking] (most likely nothing to do)
 # DONE: set message_type=tracking for mail.message records with mail.tracking.value records in pre-migration
+# DONE in end-migration: 20.0 renders tracking values into the message body when it
+# posts (mail.mail_tracking_template) and the chatter only shows the body, so older
+# tracking messages show "This message has been removed". The body is rebuilt from
+# the stored mail.tracking.value rows (empty body replaced, real body appended).
 
 mail         / mail.message             / partner_cc_ids (many2many)    : NEW relation: res.partner
 # NOTHING TO DO

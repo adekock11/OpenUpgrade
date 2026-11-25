@@ -18,3 +18,15 @@ class TestMailMigration(TransactionCase):
             ).channel_role,
             "owner",
         )
+
+    def test_tracking_message_body(self):
+        """
+        Test that an empty tracking message contains its tracking summary
+        """
+        message = self.env["mail.message"].search(
+            [("subject", "=", "OpenUpgrade tracking body")]
+        )
+        self.assertEqual(len(message), 1)
+        self.assertIn("OU-OLD-REF", message.body)
+        self.assertIn("OU-NEW-REF", message.body)
+        self.assertIn("→", message.body)
