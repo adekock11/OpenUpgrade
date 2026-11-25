@@ -227,6 +227,10 @@ mail         / mail.message             / message_type (selection)      : select
 # DONE in pre-migration: notification messages that have mail.tracking.value rows become
 # message_type tracking, which is what the 20.0 changes filter searches. Comments that
 # also carry tracking values stay comments.
+# DONE in end-migration: 20.0 renders tracking values into the message body when it
+# posts (mail.mail_tracking_template) and the chatter only shows the body, so older
+# tracking messages show "This message has been removed". The body is rebuilt from
+# the stored mail.tracking.value rows (empty body replaced, real body appended).
 
 mail         / mail.message             / partner_cc_ids (many2many)    : NEW relation: res.partner
 
