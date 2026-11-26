@@ -27,13 +27,22 @@ def _base_automation_update_trigger_fields_ids_if_null(env):
                 ("name", "=", "create_date"),
             ]
         )
-        for automation in base_automations:
-            create_date_field = create_date_fields.filtered(
-                lambda field, automation=automation: field.model_id
-                == automation.model_id
-            )[:1]
-            if create_date_field:
-                automation.trigger_field_ids = [(4, create_date_field.id)]
+        # In 17.0 filter_domain and filter_pre_domain are stored computed
+        # fields that depend on trigger_field_ids. For an on_create rule the
+        # compute resets them, which would wipe the domains of existing rules
+        # when we fill trigger_field_ids below. Keep the values from v16.
+        protected_fields = [
+            base_automations._fields["filter_domain"],
+            base_automations._fields["filter_pre_domain"],
+        ]
+        with env.protecting(protected_fields, base_automations):
+            for automation in base_automations:
+                create_date_field = create_date_fields.filtered(
+                    lambda field, automation=automation: field.model_id
+                    == automation.model_id
+                )[:1]
+                if create_date_field:
+                    automation.trigger_field_ids = [(4, create_date_field.id)]
 
 
 def _ir_ui_view_remove_inherit_id_from_automation_form(env):
